@@ -19,6 +19,13 @@ type SliceReflector interface {
 	// Len returns the current length of the slice.
 	Len() int
 
+	// Cap returns the slices maximum capacity.
+	Cap() int
+
+	// Items returns a slice of Reflectors for each item in the array.
+	// Allows easy iteration over all items.
+	Items() []Reflector
+
 	// Index returns the item at the given index as a Reflector, or nil if the
 	// index does not exist.
 	Index(index int) Reflector
@@ -27,9 +34,19 @@ type SliceReflector interface {
 	// index does not exist.
 	IndexValue(index int) interface{}
 
-	// Items returns a slice of Reflectors for each item in the array.
-	// Allows easy iteration over all items.
-	Items() []Reflector
+	// SetIndex sets the slices index to a value.
+	// Returns an error if the index is bigger than the slice cap, or if the
+	// value is incompatible.
+	SetIndex(index int, value Reflector) error
+
+	// SetIndex sets the slices index to a value.
+	// Returns an error if the index is bigger than the slice cap, or if the
+	// value is incompatible.
+	SetIndexValue(index int, value interface{}) error
+
+	// Swaps two indexes.
+	// Returns an error if any index is out of bounds or unset.
+	Swap(index1, index2 int) error
 
 	// Append appends an item to the slice.
 	// Can only be used if the SliceReflector was created from a pointer to a slice.
@@ -123,6 +140,10 @@ func (s *sliceReflector) Len() int {
 	return s.sliceValue.Len()
 }
 
+func (s *sliceReflector) Cap() int {
+	return s.sliceValue.Value().Cap()
+}
+
 func (s *sliceReflector) Index(i int) Reflector {
 	if i > s.Len()-1 {
 		return nil
@@ -136,6 +157,35 @@ func (s *sliceReflector) IndexValue(i int) interface{} {
 	} else {
 		return nil
 	}
+}
+
+func (s *sliceReflector) SetIndex(index int, value Reflector) error {
+	if index > s.Cap()-1 {
+		return errors.New(ERR_INDEX_OUT_OF_BOUNDS)
+	}
+	if err := s.Index(index).Set(value); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *sliceReflector) SetIndexValue(index int, value interface{}) error {
+	return s.SetIndex(index, Reflect(value))
+}
+
+func (s *sliceReflector) Swap(index1, index2 int) error {
+	if index1 > s.Cap()-1 || index2 > s.Cap()-1 {
+		return errors.New(ERR_INDEX_OUT_OF_BOUNDS)
+	}
+	v1 := s.Index(index1).Interface()
+	v2 := s.Index(index2).Interface()
+	if err := s.SetIndex(index1, Reflect(v2)); err != nil {
+		return err
+	}
+	if err := s.SetIndex(index2, Reflect(v1)); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *sliceReflector) Items() []Reflector {
