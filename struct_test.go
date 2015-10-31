@@ -128,32 +128,32 @@ var _ = Describe("Struct", func() {
 	It("Should return error on .SetField() with inexistant field", func() {
 		s := &testStruct{}
 		r := Reflect(s).MustStruct()
-		Expect(r.SetField("InexistantField", 22)).To(HaveOccurred())
+		Expect(r.SetFieldValue("InexistantField", 22)).To(HaveOccurred())
 	})
 
 	It("Should .SetField()", func() {
 		s := &testStruct{}
 		r := Reflect(s).MustStruct()
-		Expect(r.SetField("Int", 22)).ToNot(HaveOccurred())
+		Expect(r.SetFieldValue("Int", 22)).ToNot(HaveOccurred())
 		Expect(s.Int).To(Equal(22))
 	})
 
 	It("Should fail .SetField() with type mismatch", func() {
 		s := &testStruct{}
 		r := Reflect(s).MustStruct()
-		Expect(r.SetField("Int", 22.0)).To(HaveOccurred())
+		Expect(r.SetFieldValue("Int", 22.0)).To(HaveOccurred())
 	})
 
 	It("Should .SetField() with non-matching types and conversion enabled", func() {
 		s := &testStruct{}
 		r := Reflect(s).MustStruct()
-		Expect(r.SetField("Int", 22.0, true)).ToNot(HaveOccurred())
+		Expect(r.SetFieldValue("Int", 22.0, true)).ToNot(HaveOccurred())
 	})
 
 	It("Should fail .SetField() with conversion enabled and inconvertable types", func() {
 		s := &testStruct{}
 		r := Reflect(s).MustStruct()
-		Expect(r.SetField("Int", []int{})).To(HaveOccurred())
+		Expect(r.SetFieldValue("Int", []int{})).To(HaveOccurred())
 	})
 
 	Describe("Map conversions", func() {

@@ -35,6 +35,11 @@ var _ = Describe("Slice", func() {
 		Expect(r.Len()).To(Equal(3))
 	})
 
+	It("Should .Cap()", func() {
+		s := make([]int, 0, 10)
+		Expect(Reflect(s).MustSlice().Cap()).To(Equal(10))
+	})
+
 	It("Should return item with .Index()", func() {
 		s := []int{0, 1, 2}
 		r, _ := Reflect(s).Slice()
@@ -46,6 +51,22 @@ var _ = Describe("Slice", func() {
 		r, _ := Reflect(s).Slice()
 		Expect(r.Len()).To(Equal(3))
 		Expect(r.Index(5)).To(BeNil())
+	})
+
+	It("Should set index", func() {
+		s := []int{0, 1, 2}
+		r := Reflect(s).MustSlice()
+		err := r.SetIndexValue(0, 55)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(s[0]).To(Equal(55))
+	})
+
+	It("Should .Swap() indexes", func() {
+		s := []int{0, 1, 2}
+		r := Reflect(s).MustSlice()
+		err := r.Swap(0, 2)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(s).To(Equal([]int{2, 1, 0}))
 	})
 
 	It("Should return items with .Items()", func() {
