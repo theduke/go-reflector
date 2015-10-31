@@ -29,6 +29,10 @@ type testInterface interface {
 
 var _ = Describe("Reflector", func() {
 
+	It("Should convert to string", func() {
+		Expect(Reflect(10).String()).To(Equal("<int Value>"))
+	})
+
 	Describe("IsNumericKind", func() {
 		It("Should determine numeric kinds", func() {
 			Expect(IsNumericKind(reflect.Int)).To(BeTrue())
@@ -259,12 +263,33 @@ var _ = Describe("Reflector", func() {
 			Expect(Reflect([]int{44}).Equals([]int{45})).To(BeFalse())
 		})
 
+		It("SHould dereference when .Equals()", func() {
+			Expect(Reflect(22).Equals(Reflect(22))).To(BeTrue())
+			Expect(Reflect(22).Equals(reflect.ValueOf(22))).To(BeTrue())
+		})
+
+		It("Should return struct on .Struct() with set pointer", func() {
+			x := &testStruct{}
+			s, _ := Reflect(x).Struct()
+			Expect(s.Interface()).To(Equal(x))
+		})
+
+		It("Should return error on .Struct() with non-struct type", func() {
+			_, err := Reflect(22).Struct()
+			Expect(err).To(HaveOccurred())
+		})
+
 		It("Should create a new slice with .NewSlice()", func() {
 			_, ok := Reflect(1).NewSlice().Interface().([]int)
 			Expect(ok).To(BeTrue())
 		})
 
 		Describe("Type conversions", func() {
+			It("Should return error on comparison with invalid type", func() {
+				_, err := Reflect(22).ConvertTo(nil)
+				Expect(err).To(HaveOccurred())
+			})
+
 			It("Should convert to same type", func() {
 				Expect(Reflect(22).ConvertTo(0)).To(Equal(22))
 			})
@@ -293,6 +318,13 @@ var _ = Describe("Reflector", func() {
 				datestr := "2012-05-23T18:30:00.000-05:00"
 				t, _ := time.Parse(time.RFC3339, "2012-05-23T18:30:00.000-05:00")
 				Expect(Reflect(datestr).ConvertTo(&time.Time{})).To(Equal(&t))
+			})
+
+			It("Should return error when parsing invalid time", func() {
+				// Test string to *time.Time conversion.
+				datestr := "333"
+				_, err := Reflect(datestr).ConvertTo(time.Time{})
+				Expect(err).To(HaveOccurred())
 			})
 
 			It("Should convert string to bool", func() {
