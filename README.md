@@ -17,6 +17,10 @@ One principal of the library is to almost never panic, but return nil values or 
 unlike the reflect package of the standard library.
 Note that it may panic when using methods prefixed with **Must**.
 
+## Api Documenation
+
+Detailed docs on all methods can be found on [GoDoc](https://godoc.org/github.com/theduke/go-reflector)
+
 ## Install
 
 ```bash
