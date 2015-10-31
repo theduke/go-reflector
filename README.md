@@ -11,7 +11,7 @@ Features:
 * Easily create and work with structs.
 * Compare arbitrary values with operators (=, !=, <, <=, >, >=)
 * Recursive .ToMap() and .FromMap() for structs
-* Struct field sorter (with operators =, !=, <, <=, >, >=)
+* Sort an array of structs by a struct field
 
 One principal of the library is to almost never panic, but return nil values or errors instead, 
 unlike the reflect package of the standard library.
@@ -200,6 +200,25 @@ flag, err := r.CompareTo("20", "!=") // => false, nil
 
 // Invalid comparisons.
 flag, err := r.CompareTo([]int{}, "=") // => false, err_incomparable_types
+```
+
+### Sort a slice of structs by struct field
+
+```go
+type testStruct struct {
+	Int int
+}
+
+s := []testStruct{
+	testStruct{Int: 87},
+	testStruct{Int: 1000},
+	testStruct{Int: 5},
+	testStruct{Int: 800},
+	testStruct{Int: 2},
+}
+
+r := Reflect(s).MustSlice()
+err := SortStructSlice(r, "Int", true)
 ```
 
 ## Additional information
