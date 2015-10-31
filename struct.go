@@ -35,7 +35,8 @@ type StructReflector interface {
 	// does not exist.
 	UFieldValue(fieldName string) interface{}
 
-	SetField(fieldName string, value interface{}, convert ...bool) error
+	SetFieldValue(fieldName string, value interface{}, convert ...bool) error
+	SetField(fieldName string, value Reflector, convert ...bool) error
 
 	// ToMap recursively converts the struct to a map[string]interface{} map.
 	// You can optionally omit zero or empty values.
@@ -158,12 +159,20 @@ func (r *structReflector) UFieldValue(fieldName string) interface{} {
 	return v
 }
 
-func (r *structReflector) SetField(fieldName string, value interface{}, convert ...bool) error {
+func (r *structReflector) SetFieldValue(fieldName string, value interface{}, convert ...bool) error {
+	v := Reflect(value)
+	if v == nil {
+		return errors.New(ERR_INVALID_VALUE)
+	}
+	return r.SetField(fieldName, v, convert...)
+}
+
+func (r *structReflector) SetField(fieldName string, value Reflector, convert ...bool) error {
 	field := r.Field(fieldName)
 	if field == nil {
 		return errors.New(ERR_UNKNOWN_FIELD)
 	}
-	return field.SetValue(value, convert...)
+	return field.Set(value, convert...)
 }
 
 func (r *structReflector) ToMap(omitZero, omitEmpty bool) map[string]interface{} {
