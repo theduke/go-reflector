@@ -89,6 +89,16 @@ var _ = Describe("Struct", func() {
 		Expect(fields["Int"].Interface()).To(Equal(10))
 	})
 
+	It("Should build map of embedded fields with .EmbeddedFields()", func() {
+		nested := nestedStruct{}
+		r := Reflect(nested).MustStruct()
+		embedded := r.EmbeddedFields()
+
+		Expect(embedded).To(HaveLen(1))
+		Expect(embedded).To(HaveKey("testStruct"))
+		Expect(embedded["testStruct"].Name()).To(Equal("testStruct"))
+	})
+
 	It("Should return true on .HasField() with valid field", func() {
 		r := Reflect(testStruct{}).MustStruct()
 		Expect(r.HasField("Int")).To(BeTrue())

@@ -12,8 +12,19 @@ type StructReflector interface {
 	// Value returns the raw reflect.Value.
 	Value() Reflector
 
-	// Type returns the raw reflect.Type.
+	// Type returns the reflect.Type of the struct.
 	Type() reflect.Type
+
+	// Name returns the name of the struct.
+	Name() string
+
+	// FullName returns the name of the struct, prefixed with the full package path.
+	//
+	// EG: for time.Time, it would return "time.Time".
+	FullName() string
+
+	// FieldInfo returns a map of all field fields (mapped by field name).
+	FieldInfo() map[string]*reflect.StructField
 
 	// New creates a new instance of the struct and returns an reflector.
 	New() StructReflector
@@ -23,6 +34,9 @@ type StructReflector interface {
 
 	// Fields returns a map of fields, allowing you to easily iterate over all fields.
 	Fields() map[string]Reflector
+
+	// EmbeddedFields returns all embedded fields as a map.
+	EmbeddedFields() map[string]StructReflector
 
 	// HasField returns true if the struct has a field with the specified name.
 	HasField(fieldName string) bool
@@ -106,6 +120,23 @@ func (r *structReflector) Type() reflect.Type {
 	return r.structItem.Type()
 }
 
+func (r *structReflector) Name() string {
+	return r.Type().Name()
+}
+
+func (r *structReflector) FullName() string {
+	return r.Type().PkgPath() + "." + r.Name()
+}
+
+func (r *structReflector) FieldInfo() map[string]*reflect.StructField {
+	m := make(map[string]*reflect.StructField, 0)
+	for i := 0; i < r.Type().NumField(); i++ {
+		f := r.Type().Field(i)
+		m[f.Name] = &f
+	}
+	return m
+}
+
 func (r *structReflector) New() StructReflector {
 	ptr := New(r.structItem.Type())
 	refl, err := newStructReflector(ptr)
@@ -132,9 +163,18 @@ func (r *structReflector) Field(fieldName string) Reflector {
 
 func (r *structReflector) Fields() map[string]Reflector {
 	m := make(map[string]Reflector)
-	for i := 0; i < r.Type().NumField(); i++ {
-		f := r.Type().Field(i)
-		m[f.Name] = Reflect(r.structItem.Value().Field(i))
+	for name, _ := range r.FieldInfo() {
+		m[name] = Reflect(r.structItem.Value().FieldByName(name))
+	}
+	return m
+}
+
+func (r *structReflector) EmbeddedFields() map[string]StructReflector {
+	m := make(map[string]StructReflector)
+	for name, field := range r.FieldInfo() {
+		if field.Anonymous {
+			m[name] = Reflect(r.structItem.Value().FieldByName(name)).MustStruct()
+		}
 	}
 	return m
 }
