@@ -32,6 +32,7 @@ const (
 	ERR_UNCOMPARABLE_VALUES        = "uncomparable_values"
 	ERR_UNKNOWN_OPERATOR           = "unknown_operator"
 	ERR_CANT_APPEND_NOT_A_POINTER  = "cant_append_when_slice_reflector_not_created_from_pointer"
+	ERR_INDEX_OUT_OF_BOUNDS        = "index_out_of_bounds"
 )
 
 // IsNumericKind returns true if the given reflect.Kind is any numeric type,
@@ -535,7 +536,9 @@ func (r *reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 }
 
 func (r *reflector) Set(value Reflector, convert ...bool) error {
-	if !r.value.CanSet() {
+	if value == nil {
+		return errors.New(ERR_INVALID_VALUE)
+	} else if !r.value.CanSet() {
 		return errors.New(ERR_UNSETTABLE_VALUE)
 	}
 	doConvert := len(convert) > 0 && convert[0]
@@ -634,7 +637,14 @@ func (r *reflector) CompareTo(value interface{}, operator string) (bool, error) 
 	kindA := typA.Kind()
 
 	bVal := value
-	b := Reflect(value)
+	var b Reflector
+	if r, ok := value.(Reflector); ok {
+		// Value is a reflector, so use it.
+		b = r
+		bVal = b.Interface()
+	} else {
+		b = Reflect(value)
+	}
 	if b == nil || b.DeepIsZero() {
 		bVal = float64(0)
 		b = Reflect(bVal)
