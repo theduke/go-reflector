@@ -78,6 +78,9 @@ type Reflector interface {
 	// can not be addressed.
 	Addr() Reflector
 
+	// New creates a new instance of the current values type and returns a pointer.
+	New() Reflector
+
 	IsPtr() bool
 	IsString() bool
 	IsSlice() bool
@@ -258,6 +261,10 @@ func (r *reflector) Addr() Reflector {
 		return nil
 	}
 	return Reflect(r.value.Addr().Interface())
+}
+
+func (r *reflector) New() Reflector {
+	return New(r.Type())
 }
 
 func (r *reflector) IsPtr() bool {
