@@ -33,6 +33,7 @@ const (
 	ERR_TYPE_MISMATCH              = "type_mismatch"
 	ERR_UNCOMPARABLE_VALUES        = "uncomparable_values"
 	ERR_UNKNOWN_OPERATOR           = "unknown_operator"
+	ERR_CANT_APPEND_NOT_A_POINTER  = "cant_append_when_slice_reflector_not_created_from_pointer"
 )
 
 // IsNumericKind returns true if the given reflect.Kind is any numeric type,
@@ -132,11 +133,8 @@ type Reflector interface {
 	// You can pass in the raw value, but also a Reflector or reflect.Value.
 	Equals(value interface{}) bool
 
-	// Slice returns a new SliceReflector if the value is a slice or a pointer to a slice, or a ptr to a ptr of a slice, or nil
-	// otherwise.
-	//
-	// If you want to auto-initialize a remote slice pointer with a new slice, you must pass a pointer to a pointer to
-	// the slice.
+	// Slice returns a new SliceReflector if the value is a slice or a pointer to a slice. Returns nil otherwise.
+	// When a pointer to a slice, and the slice is nil, it will be auto-initialized.
 	Slice() (SliceReflector, error)
 
 	// Struct returns a new StructReflector if the value is either a struct or a

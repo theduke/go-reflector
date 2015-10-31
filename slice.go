@@ -8,32 +8,43 @@ import (
 type SliceReflector interface {
 	String() string
 
-	// Interface returns the underlying value as interface{}.
-	//
-	// IMPORTANT: If you created the slice from a pointer, or a pointer to a pointer,
-	// this will not be a slice, but the pointer!
-	// To obtain the slice, use SliceInterface()!
+	// Interface returns the slice as interface{}.
 	Interface() interface{}
-
-	// SliceInterface returns the slice as interface{}.
-	SliceInterface() interface{}
 
 	Value() Reflector
 
-	// ItemType returns the type of slice items.
-	ItemType() reflect.Type
+	// Type returns the type of slice items.
+	Type() reflect.Type
 
 	// Len returns the current length of the slice.
 	Len() int
 
 	// Index returns the item at the given index as a Reflector, or nil if the
 	// index does not exist.
-	Index(i int) Reflector
+	Index(index int) Reflector
+
+	// Index returns the item at the given index as interface{}, or nil if the
+	// index does not exist.
+	IndexValue(index int) interface{}
+
+	// Append appends an item to the slice.
+	// Can only be used if the SliceReflector was created from a pointer to a slice.
+	//
+	// Returns an error if the value is of a different type than the slice, or if
+	// the SliceReflector was not created from a pointer.
+	Append(value ...Reflector) error
+
+	// AppendValue appends an item to the slice.
+	// Can only be used if the SliceReflector was created from a pointer to a slice.
+	//
+	// Returns an error if the value is of a different type than the slice, or if
+	// the SliceReflector was not created from a pointer.
+	AppendValue(value ...interface{}) error
 }
 
 type sliceReflector struct {
 	value      Reflector
-	sliceValue reflect.Value
+	sliceValue Reflector
 	canAppend  bool
 }
 
@@ -45,46 +56,27 @@ func slice(value Reflector) (SliceReflector, error) {
 		// Direct slice.
 		return &sliceReflector{
 			value:      value,
-			sliceValue: value.Value(),
+			sliceValue: value,
 		}, nil
 	}
 
 	if value.IsPtr() && value.Type().Elem().Kind() == reflect.Slice {
 		if value.IsNil() {
-			return nil, errors.New("nil_slice_ptr: Can't get a slice reflector for a nil slice pointer. Must pass pointer to pointer to allow auto-initialization!")
+			return nil, errors.New("nil_slice_ptr: Can't get a slice reflector for a nil slice pointer. Must pass an initialized pointer!")
 		} else {
-			return &sliceReflector{
-				value:      value,
-				sliceValue: value.Elem().Value(),
-			}, nil
-		}
-	}
+			if value.Elem().IsNil() {
+				sliceItemType := value.Type().Elem().Elem()
+				slice := New(reflect.SliceOf(sliceItemType)).Elem()
 
-	if value.IsPtr() && value.Type().Elem().Kind() == reflect.Ptr && value.Type().Elem().Elem().Kind() == reflect.Slice {
-		// Got a pointer to a pointer to a slice.
-
-		// Check if it is nil.
-		if value.IsNil() {
-			return nil, errors.New("nil_slice_ptr: Can't get a SliceReflector for a nil pointer to a pointer to a slice: must pass initialized pointer")
-		}
-
-		ptr := value.Elem()
-		if ptr.IsNil() {
-			// Ptr is nil, so create a new slice.
-
-			// First Elem() gets the slice, second one the type of slice items.
-			sliceItemType := ptr.Type().Elem().Elem()
-
-			newSlicePtr := New(reflect.SliceOf(sliceItemType))
-
-			if err := ptr.Set(newSlicePtr); err != nil {
-				// Could not set pointer to new slice.
-				return nil, err
+				if err := value.Elem().Set(slice); err != nil {
+					// Could not set pointer to new slice.
+					return nil, err
+				}
 			}
 
 			return &sliceReflector{
 				value:      value,
-				sliceValue: newSlicePtr.Elem().Value(),
+				sliceValue: value.Elem(),
 				canAppend:  true,
 			}, nil
 		}
@@ -98,10 +90,6 @@ func (s *sliceReflector) String() string {
 }
 
 func (s *sliceReflector) Interface() interface{} {
-	return s.value.Interface()
-}
-
-func (s *sliceReflector) SliceInterface() interface{} {
 	return s.sliceValue.Interface()
 }
 
@@ -109,8 +97,8 @@ func (s *sliceReflector) Value() Reflector {
 	return s.value
 }
 
-func (s *sliceReflector) ItemType() reflect.Type {
-	return s.value.Elem().Type()
+func (s *sliceReflector) Type() reflect.Type {
+	return s.sliceValue.Type().Elem()
 }
 
 func (s *sliceReflector) Len() int {
@@ -118,8 +106,44 @@ func (s *sliceReflector) Len() int {
 }
 
 func (s *sliceReflector) Index(i int) Reflector {
-	if s.Len()-1 < i {
+	if i > s.Len()-1 {
 		return nil
 	}
-	return Reflect(s.value.Value().Index(i))
+	return ReflectVal(s.sliceValue.Value().Index(i))
+}
+
+func (s *sliceReflector) IndexValue(i int) interface{} {
+	if v := s.Index(i); v != nil {
+		return v.Interface()
+	} else {
+		return nil
+	}
+}
+
+func (s *sliceReflector) Append(values ...Reflector) error {
+	if !s.canAppend {
+		return errors.New(ERR_CANT_APPEND_NOT_A_POINTER)
+	}
+
+	var newSlice reflect.Value
+
+	for _, val := range values {
+		if val.Type() != s.Type() {
+			return errors.New(ERR_TYPE_MISMATCH)
+		}
+
+		newSlice = reflect.Append(s.sliceValue.Value(), val.Value())
+	}
+
+	s.value.Elem().Set(ReflectVal(newSlice))
+	return nil
+}
+
+func (s *sliceReflector) AppendValue(values ...interface{}) error {
+	for _, val := range values {
+		if err := s.Append(Reflect(val)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
