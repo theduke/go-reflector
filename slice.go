@@ -127,7 +127,7 @@ func (s *sliceReflector) Index(i int) Reflector {
 	if i > s.Len()-1 {
 		return nil
 	}
-	return ReflectVal(s.sliceValue.Value().Index(i))
+	return Reflect(s.sliceValue.Value().Index(i))
 }
 
 func (s *sliceReflector) IndexValue(i int) interface{} {
@@ -165,7 +165,7 @@ func (s *sliceReflector) Append(values ...Reflector) error {
 		newSlice = reflect.Append(s.sliceValue.Value(), val.Value())
 	}
 
-	s.value.Elem().Set(ReflectVal(newSlice))
+	s.value.Elem().Set(Reflect(newSlice))
 	return nil
 }
 
@@ -197,7 +197,7 @@ func (s *sliceReflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 			if !item.Type().ConvertibleTo(typ) {
 				return nil, errors.New(ERR_TYPE_MISMATCH)
 			}
-			item = ReflectVal(item.Value().Convert(typ))
+			item = Reflect(item.Value().Convert(typ))
 		}
 
 		if err := newSlice.Append(item); err != nil {

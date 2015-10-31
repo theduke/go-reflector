@@ -52,13 +52,13 @@ var _ = Describe("Reflector", func() {
 			Expect(Reflect(22)).ToNot(BeNil())
 		})
 
-		It("Should return nil on ReflectVal() with invalid val", func() {
-			Expect(ReflectVal(reflect.ValueOf(nil))).To(BeNil())
+		It("Should return nil on Reflect() with invalid val", func() {
+			Expect(Reflect(reflect.ValueOf(nil))).To(BeNil())
 		})
 
-		It("Should create reflector with ReflectVal()", func() {
+		It("Should create reflector with Reflect()", func() {
 			v := reflect.ValueOf(22)
-			r := ReflectVal(v)
+			r := Reflect(v)
 			Expect(r).ToNot(BeNil())
 			Expect(r.Value()).To(Equal(v))
 		})
@@ -98,7 +98,7 @@ var _ = Describe("Reflector", func() {
 			}
 			v := reflect.ValueOf(&s).Elem().FieldByName("Int")
 
-			Expect(ReflectVal(v).Addr().Interface()).To(Equal(v.Addr().Interface()))
+			Expect(Reflect(v).Addr().Interface()).To(Equal(v.Addr().Interface()))
 		})
 
 		It("Should .IsPtr()", func() {

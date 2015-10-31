@@ -47,7 +47,7 @@ func IsNumericKind(kind reflect.Kind) bool {
 }
 
 func New(typ reflect.Type) Reflector {
-	return ReflectVal(reflect.New(typ))
+	return Reflect(reflect.New(typ))
 }
 
 type Reflector interface {
@@ -198,33 +198,23 @@ type Reflector interface {
 // Reflect returns a new Reflector for the given value, or nil if the value
 // is invalid.
 func Reflect(value interface{}) Reflector {
-	val := reflect.ValueOf(value)
+	var val reflect.Value
+	if v, ok := value.(reflect.Value); ok {
+		val = v
+	} else {
+		val = reflect.ValueOf(value)
+	}
 	if !val.IsValid() {
 		return nil
 	}
 
 	return &reflector{
-		rawValue: value,
-		value:    val,
-		typ:      val.Type(),
-	}
-}
-
-func ReflectVal(val reflect.Value) Reflector {
-	if !val.IsValid() {
-		return nil
-	}
-	return &reflector{
-		rawValue: val.Interface(),
-		value:    val,
-		typ:      val.Type(),
+		value: val,
 	}
 }
 
 type reflector struct {
-	rawValue interface{}
-	value    reflect.Value
-	typ      reflect.Type
+	value reflect.Value
 }
 
 // Ensure reflector implements Reflector.
@@ -246,11 +236,11 @@ func (r *reflector) Value() reflect.Value {
 }
 
 func (r *reflector) Type() reflect.Type {
-	return r.typ
+	return r.value.Type()
 }
 
 func (r *reflector) Kind() reflect.Kind {
-	return r.typ.Kind()
+	return r.Type().Kind()
 }
 
 func (r *reflector) Elem() Reflector {
@@ -260,7 +250,7 @@ func (r *reflector) Elem() Reflector {
 	if !(r.IsPtr() || r.IsInterface()) {
 		return nil
 	}
-	return ReflectVal(r.value.Elem())
+	return Reflect(r.value.Elem())
 }
 
 func (r *reflector) Addr() Reflector {
@@ -271,51 +261,51 @@ func (r *reflector) Addr() Reflector {
 }
 
 func (r *reflector) IsPtr() bool {
-	return r.typ.Kind() == reflect.Ptr
+	return r.Type().Kind() == reflect.Ptr
 }
 
 func (r *reflector) IsString() bool {
-	return r.typ.Kind() == reflect.String
+	return r.Type().Kind() == reflect.String
 }
 
 func (r *reflector) IsSlice() bool {
-	return r.typ.Kind() == reflect.Slice
+	return r.Type().Kind() == reflect.Slice
 }
 
 func (r *reflector) IsMap() bool {
-	return r.typ.Kind() == reflect.Map
+	return r.Type().Kind() == reflect.Map
 }
 
 func (r *reflector) IsStruct() bool {
-	return r.typ.Kind() == reflect.Struct
+	return r.Type().Kind() == reflect.Struct
 }
 
 func (r *reflector) IsStructPtr() bool {
-	return r.typ.Kind() == reflect.Ptr && r.typ.Elem().Kind() == reflect.Struct
+	return r.Type().Kind() == reflect.Ptr && r.Type().Elem().Kind() == reflect.Struct
 }
 
 func (r *reflector) IsInterface() bool {
-	return r.typ.Kind() == reflect.Interface
+	return r.Type().Kind() == reflect.Interface
 }
 
 func (r *reflector) IsChan() bool {
-	return r.typ.Kind() == reflect.Chan
+	return r.Type().Kind() == reflect.Chan
 }
 
 func (r *reflector) IsFunc() bool {
-	return r.typ.Kind() == reflect.Func
+	return r.Type().Kind() == reflect.Func
 }
 
 func (r *reflector) IsArray() bool {
-	return r.typ.Kind() == reflect.Array
+	return r.Type().Kind() == reflect.Array
 }
 
 func (r *reflector) IsBool() bool {
-	return r.typ.Kind() == reflect.Bool
+	return r.Type().Kind() == reflect.Bool
 }
 
 func (r *reflector) IsNumeric() bool {
-	return IsNumericKind(r.typ.Kind())
+	return IsNumericKind(r.Type().Kind())
 }
 
 func (r *reflector) IsIterable() bool {
@@ -334,7 +324,7 @@ func (r *reflector) Len() int {
 }
 
 func (r *reflector) IsNil() bool {
-	switch r.typ.Kind() {
+	switch r.Type().Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
 		// Only these types can be nil.
 		return r.value.IsNil()
@@ -353,7 +343,7 @@ func (r *reflector) IsZero() bool {
 	if r.IsSlice() || r.IsArray() || r.IsMap() {
 		return false
 	}
-	return r.rawValue == reflect.Zero(r.typ).Interface()
+	return r.Interface() == reflect.Zero(r.Type()).Interface()
 }
 
 func (r *reflector) DeepIsZero() bool {
@@ -371,7 +361,7 @@ func (r *reflector) IsEmpty() bool {
 		return true
 	}
 
-	switch r.typ.Kind() {
+	switch r.Type().Kind() {
 	case reflect.Map, reflect.Slice, reflect.Array, reflect.Chan:
 		return r.value.Len() < 1
 	}
@@ -386,7 +376,7 @@ func (r *reflector) Equals(value interface{}) bool {
 	} else if v, ok := value.(reflect.Value); ok {
 		value = v.Interface()
 	}
-	return reflect.DeepEqual(r.rawValue, value)
+	return reflect.DeepEqual(r.Interface(), value)
 }
 
 func (r *reflector) Slice() (SliceReflector, error) {
@@ -417,13 +407,13 @@ func (r *reflector) NewSlice() SliceReflector {
 	// Build new array.
 	// See http://stackoverflow.com/questions/25384640/why-golang-reflect-makeslice-returns-un-addressable-value
 	// Create a slice to begin with
-	s := reflect.MakeSlice(reflect.SliceOf(r.typ), 0, 0)
+	s := reflect.MakeSlice(reflect.SliceOf(r.Type()), 0, 0)
 
 	// Create a pointer to a slice value and set it to the slice
 	x := reflect.New(s.Type())
 	x.Elem().Set(s)
 
-	sliceReflector, err := newSliceReflector(ReflectVal(x))
+	sliceReflector, err := newSliceReflector(Reflect(x))
 	if err != nil {
 		// This should never happen!
 		// Panic just to be sure, though.
@@ -452,11 +442,11 @@ func (r *reflector) saveConvertToType(typ reflect.Type) interface{} {
 func (r *reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 	kind := typ.Kind()
 
-	valKind := r.typ.Kind()
+	valKind := r.Type().Kind()
 
-	if typ == r.typ {
+	if typ == r.Type() {
 		// Same type, nothing to convert.
-		return r.rawValue, nil
+		return r.Interface(), nil
 	}
 
 	isPointer := kind == reflect.Ptr
@@ -467,8 +457,8 @@ func (r *reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 
 	// If target value is a pointer and the value is not (and the types match),
 	// create a new pointer pointing to the value.
-	if isPointer && r.typ == pointerType {
-		newVal := reflect.New(r.typ)
+	if isPointer && r.Type() == pointerType {
+		newVal := reflect.New(r.Type())
 		newVal.Elem().Set(r.value)
 
 		return newVal.Interface(), nil
@@ -486,7 +476,7 @@ func (r *reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 	isTimePointer := isPointer && pointerType.Kind() == reflect.Struct && pointerType.PkgPath() == "time" && pointerType.Name() == "Time"
 
 	if (isTime || isTimePointer) && valKind == reflect.String {
-		date, err := time.Parse(time.RFC3339, r.rawValue.(string))
+		date, err := time.Parse(time.RFC3339, r.Interface().(string))
 		if err != nil {
 			return nil, errors.New(ERR_INVALID_TIME)
 		}
@@ -500,7 +490,7 @@ func (r *reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 
 	// Special handling for bool to string.
 	if kind == reflect.Bool && r.IsString() {
-		str := strings.ToLower(strings.TrimSpace(r.rawValue.(string)))
+		str := strings.ToLower(strings.TrimSpace(r.Interface().(string)))
 		switch str {
 		case "y", "yes", "1":
 			return true, nil
@@ -512,24 +502,24 @@ func (r *reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 	// Special handling for string target.
 	if kind == reflect.String {
 		// Convert byte array to string.
-		if bytes, ok := r.rawValue.([]byte); ok {
+		if bytes, ok := r.Interface().([]byte); ok {
 			return string(bytes), nil
 		}
 
 		// Check if type implemens stringer interface.
-		if stringer, ok := r.rawValue.(fmt.Stringer); ok {
+		if stringer, ok := r.Interface().(fmt.Stringer); ok {
 			// Implements Stringer, so use .String().
 			return stringer.String(), nil
 		}
 
 		// Does not implement stringer, so use fmt package.
-		return fmt.Sprintf("%v", r.rawValue), nil
+		return fmt.Sprintf("%v", r.Interface()), nil
 	}
 
 	// If value is string, and target type is numeric,
 	// parse to float and then convert with reflect.
 	if valKind == reflect.String && IsNumericKind(kind) {
-		num, err := strconv.ParseFloat(r.rawValue.(string), 64)
+		num, err := strconv.ParseFloat(r.Interface().(string), 64)
 		if err != nil {
 			return nil, err
 		}
@@ -563,7 +553,6 @@ func (r *reflector) Set(value Reflector, convert ...bool) error {
 		}
 	}
 	r.value.Set(value.Value())
-	r.rawValue = value.Interface()
 	return nil
 }
 
@@ -633,7 +622,7 @@ func (r *reflector) CompareTo(value interface{}, operator string) (bool, error) 
 	}
 
 	a := interface{}(r).(Reflector)
-	aVal := r.rawValue
+	aVal := r.Interface()
 	if a.DeepIsZero() {
 		aVal = float64(0)
 		a = Reflect(aVal)

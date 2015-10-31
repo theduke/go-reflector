@@ -118,14 +118,14 @@ func (r *structReflector) Field(fieldName string) Reflector {
 	if !field.IsValid() {
 		return nil
 	}
-	return ReflectVal(field)
+	return Reflect(field)
 }
 
 func (r *structReflector) Fields() map[string]Reflector {
 	m := make(map[string]Reflector)
 	for i := 0; i < r.Type().NumField(); i++ {
 		f := r.Type().Field(i)
-		m[f.Name] = ReflectVal(r.structItem.Value().Field(i))
+		m[f.Name] = Reflect(r.structItem.Value().Field(i))
 	}
 	return m
 }
