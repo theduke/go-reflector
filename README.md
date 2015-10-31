@@ -10,7 +10,8 @@ Features:
 * Easily create and work with slices.
 * Easily create and work with structs.
 * Compare arbitrary values with operators (=, !=, <, <=, >, >=)
-* ...
+* Recursive .ToMap() and .FromMap() for structs
+* Struct field sorter (with operators =, !=, <, <=, >, >=)
 
 One principal of the library is to almost never panic, but return nil values or errors instead, 
 unlike the reflect package of the standard library.
@@ -181,6 +182,20 @@ data := map[string]interface{
 
 // Pass true for auto-convert.
 err := r.FromMap(data, true) // => nil
+```
+
+### Comparing values
+
+```go
+
+r := reflector.Reflect(20)
+
+flag, err := r.CompareTo(float64(20), "=") // => true, nil
+flag, err := r.CompareTo(uint(30), "<") // => true, nil
+flag, err := r.CompareTo("20", "!=") // => false, nil
+
+// Invalid comparisons.
+flag, err := r.CompareTo([]int{}, "=") // => false, err_incomparable_types
 ```
 
 ## Additional information
