@@ -38,7 +38,7 @@ reflector.Reflect(nil) // => nil!
 
 r := reflector.Reflect(0)
 r.IsNumeric() // => true
-r.IsNul() // => false
+r.IsNil() // => false
 r.IsZero() // => true
 r.Len() // => 0 (not an iterable!)
 
