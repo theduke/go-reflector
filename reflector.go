@@ -42,6 +42,10 @@ func IsNumericKind(kind reflect.Kind) bool {
 	return false
 }
 
+func New(typ reflect.Type) Reflector {
+	return ReflectVal(reflect.New(typ))
+}
+
 type Reflector interface {
 	// Interface returns the value as interface{} or nil if the value can't be
 	// interfaced.
@@ -139,6 +143,14 @@ type Reflector interface {
 	ConvertToType(targetType reflect.Type) (interface{}, error)
 
 	// Sets the field to the given value.
+	//
+	// Returns an error if the types are not compatible.
+	// If you pass true as a second argument, a type conversion will be
+	// attempted.
+	Set(value Reflector, convert ...bool) error
+
+	// Sets the field to the given value.
+	//
 	// Returns an error if the types are not compatible.
 	// If you pass true as a second argument, a type conversion will be
 	// attempted.
@@ -202,7 +214,7 @@ func (r *reflector) Elem() Reflector {
 	if !(r.IsPtr() || r.IsInterface()) {
 		return nil
 	}
-	return Reflect(r.value.Elem().Interface())
+	return ReflectVal(r.value.Elem())
 }
 
 func (r *reflector) Addr() Reflector {
@@ -308,12 +320,15 @@ func (r *reflector) IsEmpty() bool {
 
 func (r *reflector) Struct() (StructReflector, error) {
 	if r.IsStruct() {
-		return Struct(r.rawValue)
+		return Struct(r.Addr().Interface())
 	} else if r.IsStructPtr() {
 		if r.IsNil() {
-			return nil, errors.New(ERR_NIL_POINTER)
+			newStruct := New(r.Type().Elem())
+			r.Set(newStruct)
+			return Struct(newStruct.Interface())
+		} else {
+			return Struct(r.rawValue)
 		}
-		return Struct(r.value.Elem().Interface())
 	}
 	return nil, errors.New(ERR_NOT_A_STRUCT)
 }
@@ -445,25 +460,34 @@ func (r *reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 	return converted, nil
 }
 
-func (r *reflector) SetValue(value interface{}, convert ...bool) error {
+func (r *reflector) Set(value Reflector, convert ...bool) error {
 	if !r.value.CanSet() {
 		return errors.New(ERR_UNSETTABLE_VALUE)
 	}
-	v := reflect.ValueOf(value)
-	if v.Type() != r.Type() {
-		if len(convert) > 0 {
+	doConvert := len(convert) > 0 && convert[0]
+	if value.Type() != r.Type() {
+		if doConvert {
 			// Try to convert.
-			converted, err := Reflect(value).ConvertToType(r.Type())
+			converted, err := value.ConvertToType(r.Type())
 			if err != nil {
 				return err
 			}
-			v = reflect.ValueOf(converted)
+			value = Reflect(converted)
 		} else {
 			return errors.New(ERR_TYPE_MISMATCH)
 		}
 	}
-	r.value.Set(v)
+	r.value.Set(value.Value())
 	return nil
+}
+
+func (r *reflector) SetValue(rawValue interface{}, convert ...bool) error {
+	val := Reflect(rawValue)
+	if val == nil {
+		return errors.New(ERR_INVALID_VALUE)
+	}
+
+	return r.Set(val, convert...)
 }
 
 type StructReflector interface {
@@ -471,13 +495,13 @@ type StructReflector interface {
 	Interface() interface{}
 
 	// Value returns the raw reflect.Value.
-	Value() reflect.Value
+	Value() Reflector
 
 	// Type returns the raw reflect.Type.
 	Type() reflect.Type
 
-	// New returns a pointer to a new instance of the struct.
-	New() interface{}
+	// New creates a new instance of the struct and returns an reflector.
+	New() StructReflector
 
 	// Returns a Reflector for a field, or nil if the field does not exist.
 	Field(fieldName string) Reflector
@@ -497,6 +521,19 @@ type StructReflector interface {
 	UFieldValue(fieldName string) interface{}
 
 	SetField(fieldName string, value interface{}, convert ...bool) error
+
+	// ToMap recursively converts the struct to a map[string]interface{} map.
+	// You can optionally omit zero or empty values.
+	ToMap(omitZero, omitEmpty bool) map[string]interface{}
+
+	// FromMap sets struct fields from a map[string]interface{} map.
+	//
+	// You can optionally enable conversion of types that do not match by
+	// passing true as a second argument.
+	//
+	// An error will be returned if values have a type mismatch, or, if
+	// conversion is enabled, if a field conversion fails.
+	FromMap(data map[string]interface{}, convert ...bool) error
 }
 
 type structReflector struct {
@@ -554,19 +591,20 @@ func MustStruct(s interface{}) StructReflector {
 }
 
 func (r *structReflector) Interface() interface{} {
-	return r.item.Interface()
+	return r.rawValue
 }
 
-func (r *structReflector) Value() reflect.Value {
-	return r.item
+func (r *structReflector) Value() Reflector {
+	return ReflectVal(r.item)
 }
 
 func (r *structReflector) Type() reflect.Type {
 	return r.typ
 }
 
-func (r *structReflector) New() interface{} {
-	return reflect.New(r.typ).Interface()
+func (r *structReflector) New() StructReflector {
+	ptr := reflect.New(r.typ).Interface()
+	return MustStruct(ptr)
 }
 
 func (r *structReflector) Field(fieldName string) Reflector {
@@ -577,10 +615,7 @@ func (r *structReflector) Field(fieldName string) Reflector {
 	if !field.IsValid() {
 		return nil
 	}
-	return &reflector{
-		value: field,
-		typ:   field.Type(),
-	}
+	return ReflectVal(field)
 }
 
 func (r *structReflector) Fields() map[string]Reflector {
@@ -626,4 +661,74 @@ func (r *structReflector) SetField(fieldName string, value interface{}, convert 
 		return errors.New(ERR_UNKNOWN_FIELD)
 	}
 	return field.SetValue(value, convert...)
+}
+
+func (r *structReflector) ToMap(omitZero, omitEmpty bool) map[string]interface{} {
+	data := make(map[string]interface{})
+	for name, field := range r.Fields() {
+		if (field.IsStruct() || field.IsStructPtr()) && !field.IsZero() {
+			s, _ := Struct(field.Interface())
+			d := s.ToMap(omitZero, omitEmpty)
+
+			// Add embedded fields to the main data.
+			if f, _ := r.typ.FieldByName(name); f.Anonymous {
+				for key, val := range d {
+					data[key] = val
+				}
+			} else {
+				data[name] = d
+			}
+			continue
+		}
+
+		if omitEmpty && field.IsEmpty() {
+			continue
+		}
+		if field.IsZero() {
+			if omitZero {
+				continue
+			} else {
+				data[name] = nil
+				continue
+			}
+		}
+		data[name] = field.Interface()
+	}
+	return data
+}
+
+func (r *structReflector) FromMap(data map[string]interface{}, convert ...bool) error {
+	for key, rawVal := range data {
+		field := r.Field(key)
+		if field == nil {
+			continue
+		}
+
+		val := Reflect(rawVal)
+		if val == nil || val.IsZero() {
+			continue
+		}
+
+		// Handle nested structs.
+		if nestedMap, ok := rawVal.(map[string]interface{}); ok && field.IsStruct() || field.IsStructPtr() {
+			// Obtain StructReflector.
+			nestedStruct, err := field.Struct()
+			if err != nil {
+				return err
+			}
+			// run FromMap on nested struct.
+			if err := nestedStruct.FromMap(nestedMap, convert...); err != nil {
+				return err
+			}
+
+			// nested fromMap succeeded
+			continue
+		}
+
+		// Handle regular values.
+		if err := field.Set(val, convert...); err != nil {
+			return errors.New("Error in field " + key + ": " + err.Error())
+		}
+	}
+	return nil
 }

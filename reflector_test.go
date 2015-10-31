@@ -16,6 +16,14 @@ type testStruct struct {
 	String string
 }
 
+type nestedStruct struct {
+	testStruct
+	Embedded    testStruct
+	EmbeddedPtr *testStruct
+
+	Strs []string
+}
+
 type testInterface interface {
 }
 
@@ -386,7 +394,7 @@ var _ = Describe("Reflector", func() {
 		It("Should create new struct with .New()", func() {
 			r, _ := Struct(testStruct{})
 			s := r.New()
-			Expect(Reflect(s).Elem().Interface()).To(Equal(testStruct{}))
+			Expect(s.Value().Interface()).To(Equal(testStruct{}))
 		})
 
 		It("Should return nil on .Field() with inexistant field", func() {
@@ -478,6 +486,139 @@ var _ = Describe("Reflector", func() {
 			s := &testStruct{}
 			r := MustStruct(s)
 			Expect(r.SetField("Int", []int{})).To(HaveOccurred())
+		})
+	})
+
+	Describe("Map conversions", func() {
+		It("Should convert to map", func() {
+			s := nestedStruct{
+				testStruct: testStruct{
+					Int:    10,
+					Float:  10.10,
+					String: "str",
+				},
+
+				Embedded: testStruct{
+					Int:    20,
+					Float:  20.20,
+					String: "str2",
+				},
+
+				EmbeddedPtr: &testStruct{
+					Int:    30,
+					Float:  30.30,
+					String: "str3",
+				},
+			}
+
+			data := MustStruct(s).ToMap(false, true)
+
+			d := map[string]interface{}{
+				"Int":    10,
+				"Float":  10.10,
+				"String": "str",
+
+				"Embedded": map[string]interface{}{
+					"Int":    20,
+					"Float":  20.20,
+					"String": "str2",
+				},
+
+				"EmbeddedPtr": map[string]interface{}{
+					"Int":    30,
+					"Float":  30.30,
+					"String": "str3",
+				},
+			}
+
+			Expect(data).To(Equal(d))
+		})
+
+		It("Should ignore zero fields on ToMap", func() {
+			s := nestedStruct{
+				testStruct: testStruct{
+					Int:    10,
+					Float:  10.10,
+					String: "str",
+				},
+			}
+
+			data := MustStruct(s).ToMap(true, false)
+
+			d := map[string]interface{}{
+				"Int":    10,
+				"Float":  10.10,
+				"String": "str",
+			}
+
+			Expect(data).To(Equal(d))
+		})
+
+		It("Should ignore empty fields on ToMap", func() {
+			s := nestedStruct{
+				testStruct: testStruct{
+					Int:    10,
+					Float:  10.10,
+					String: "str",
+				},
+				Strs: make([]string, 0),
+			}
+
+			data := MustStruct(s).ToMap(true, true)
+
+			d := map[string]interface{}{
+				"Int":    10,
+				"Float":  10.10,
+				"String": "str",
+			}
+
+			Expect(data).To(Equal(d))
+		})
+
+		It("Should load data from map", func() {
+			d := map[string]interface{}{
+				"Int":    10,
+				"Float":  10.10,
+				"String": "str",
+
+				"Embedded": map[string]interface{}{
+					"Int":    20,
+					"Float":  20.20,
+					"String": "str2",
+				},
+
+				"EmbeddedPtr": map[string]interface{}{
+					"Int":    30,
+					"Float":  30.30,
+					"String": "str3",
+				},
+			}
+
+			cs := nestedStruct{
+				testStruct: testStruct{
+					Int:    10,
+					Float:  10.10,
+					String: "str",
+				},
+
+				Embedded: testStruct{
+					Int:    20,
+					Float:  20.20,
+					String: "str2",
+				},
+
+				EmbeddedPtr: &testStruct{
+					Int:    30,
+					Float:  30.30,
+					String: "str3",
+				},
+			}
+
+			s := &nestedStruct{}
+			r := MustStruct(s)
+			Expect(r.FromMap(d)).ToNot(HaveOccurred())
+
+			Expect(*s).To(Equal(cs))
 		})
 	})
 })
