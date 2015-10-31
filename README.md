@@ -35,3 +35,18 @@ This project follows [SemVer](http://semver.org/).
 ### License
 
 This project is under the [MIT license](https://opensource.org/licenses/MIT).
+
+### Tests
+
+Tests are written in [Ginkgo]()
+Test coverage is pretty good, but not perfect (~90%).
+
+To run tests yourself:
+
+```bash
+go get github.com/onsi/ginkgo/ginkgo  # installs the ginkgo CLI
+go get github.com/onsi/gomega         # fetches the matcher library
+
+cd /path/to/go/reflector
+go test -cover
+```
