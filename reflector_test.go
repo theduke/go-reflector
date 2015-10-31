@@ -11,7 +11,9 @@ import (
 )
 
 type testStruct struct {
-	Int int
+	Int    int
+	Float  float64
+	String string
 }
 
 type testInterface interface {
@@ -395,6 +397,20 @@ var _ = Describe("Reflector", func() {
 		It("Should return Reflector on .Field()", func() {
 			r := MustStruct(testStruct{})
 			Expect(r.Field("Int")).ToNot(BeNil())
+		})
+
+		It("Should build field map with .Fields()", func() {
+			s := testStruct{
+				Int:    10,
+				Float:  10.10,
+				String: "str",
+			}
+			r := MustStruct(s)
+			fields := r.Fields()
+			Expect(fields).To(HaveKey("Int"))
+			Expect(fields).To(HaveKey("Float"))
+			Expect(fields).To(HaveKey("String"))
+			Expect(fields["Int"].Interface()).To(Equal(10))
 		})
 
 		It("Should return true on .HasField() with valid field", func() {

@@ -482,6 +482,9 @@ type StructReflector interface {
 	// Returns a Reflector for a field, or nil if the field does not exist.
 	Field(fieldName string) Reflector
 
+	// Fields returns a map of fields, allowing you to easily iterate over all fields.
+	Fields() map[string]Reflector
+
 	// HasField returns true if the struct has a field with the specified name.
 	HasField(fieldName string) bool
 
@@ -578,6 +581,15 @@ func (r *structReflector) Field(fieldName string) Reflector {
 		value: field,
 		typ:   field.Type(),
 	}
+}
+
+func (r *structReflector) Fields() map[string]Reflector {
+	m := make(map[string]Reflector)
+	for i := 0; i < r.typ.NumField(); i++ {
+		f := r.typ.Field(i)
+		m[f.Name] = ReflectVal(r.item.Field(i))
+	}
+	return m
 }
 
 func (r *structReflector) HasField(fieldName string) bool {
