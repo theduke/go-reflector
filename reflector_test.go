@@ -252,6 +252,13 @@ var _ = Describe("Reflector", func() {
 			Expect(Reflect(c).IsEmpty()).To(BeFalse())
 		})
 
+		It("Should compare values with .Equals()", func() {
+			Expect(Reflect(22).Equals(22)).To(BeTrue())
+			Expect(Reflect(22).Equals(33)).To(BeFalse())
+			Expect(Reflect([]int{44}).Equals([]int{44})).To(BeTrue())
+			Expect(Reflect([]int{44}).Equals([]int{45})).To(BeFalse())
+		})
+
 		It("Should create a new slice with .NewSlice()", func() {
 			_, ok := Reflect(1).NewSlice().Interface().([]int)
 			Expect(ok).To(BeTrue())
@@ -619,6 +626,78 @@ var _ = Describe("Reflector", func() {
 			Expect(r.FromMap(d)).ToNot(HaveOccurred())
 
 			Expect(*s).To(Equal(cs))
+		})
+	})
+
+	Describe("Type comparisons", func() {
+
+		It("Should compare two int numbers", func() {
+			a := 10
+			b := 20
+
+			Expect(Reflect(a).CompareTo(b, "=")).To(BeFalse())
+			Expect(Reflect(a).CompareTo(b, "!=")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, "<")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, "<=")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, ">")).To(BeFalse())
+			Expect(Reflect(a).CompareTo(b, ">=")).To(BeFalse())
+		})
+
+		It("Should compare two numbers with different type", func() {
+			a := float64(10)
+			b := uint(20)
+
+			Expect(Reflect(a).CompareTo(b, "=")).To(BeFalse())
+			Expect(Reflect(a).CompareTo(b, "!=")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, "<")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, "<=")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, ">")).To(BeFalse())
+			Expect(Reflect(a).CompareTo(b, ">=")).To(BeFalse())
+		})
+
+		It("Should compare a number and a string", func() {
+			a := "10"
+			b := uint(20)
+
+			Expect(Reflect(a).CompareTo(b, "=")).To(BeFalse())
+			Expect(Reflect(a).CompareTo(b, "!=")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, "<")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, "<=")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, ">")).To(BeFalse())
+			Expect(Reflect(a).CompareTo(b, ">=")).To(BeFalse())
+		})
+
+		It("Should compare time.Time", func() {
+			a, _ := time.Parse(time.RFC3339, "2012-05-23T18:30:00.000-05:00")
+			x, _ := time.Parse(time.RFC3339, "2014-05-23T18:30:00.000-05:00")
+			b := &x
+
+			Expect(Reflect(a).CompareTo(b, "=")).To(BeFalse())
+			Expect(Reflect(a).CompareTo(b, "!=")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, "<")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, "<=")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, ">")).To(BeFalse())
+			Expect(Reflect(a).CompareTo(b, ">=")).To(BeFalse())
+		})
+
+		It("Should compare strings", func() {
+			a := "a"
+			b := "b"
+
+			Expect(Reflect(a).CompareTo(b, "=")).To(BeFalse())
+			Expect(Reflect(a).CompareTo(b, "!=")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, "<")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, "<=")).To(BeTrue())
+			Expect(Reflect(a).CompareTo(b, ">")).To(BeFalse())
+			Expect(Reflect(a).CompareTo(b, ">=")).To(BeFalse())
+		})
+
+		It("SHould equality compare maps", func() {
+			a := map[string]interface{}{"a": 10}
+			b := map[string]interface{}{"a": 20}
+
+			Expect(Reflect(a).CompareTo(b, "=")).To(BeFalse())
+			Expect(Reflect(a).CompareTo(b, "!=")).To(BeTrue())
 		})
 	})
 })

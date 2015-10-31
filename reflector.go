@@ -30,6 +30,8 @@ const (
 	ERR_NOT_A_STRUCT               = "not_a_struct"
 	ERR_UNSETTABLE_VALUE           = "unsettable_value"
 	ERR_TYPE_MISMATCH              = "type_mismatch"
+	ERR_UNCOMPARABLE_VALUES        = "uncomparable_values"
+	ERR_UNKNOWN_OPERATOR           = "unknown_operator"
 )
 
 // IsNumericKind returns true if the given reflect.Kind is any numeric type,
@@ -47,6 +49,8 @@ func New(typ reflect.Type) Reflector {
 }
 
 type Reflector interface {
+	String() string
+
 	// Interface returns the value as interface{} or nil if the value can't be
 	// interfaced.
 	//
@@ -114,6 +118,11 @@ type Reflector interface {
 	// If non of these tests match, it will return false.
 	IsEmpty() bool
 
+	// Equals compares the current to the given value using reflect.DeepEqual.
+	//
+	// You can pass in the raw value, but also a Reflector or reflect.Value.
+	Equals(value interface{}) bool
+
 	// Struct returns a new StructReflector if the value is either a struct or a
 	// pointer to a struct. Returns nil and an error otherwise.
 	Struct() (StructReflector, error)
@@ -155,6 +164,13 @@ type Reflector interface {
 	// If you pass true as a second argument, a type conversion will be
 	// attempted.
 	SetValue(value interface{}, convert ...bool) error
+
+	// CompareTo tries to convert the current to the given value using an operator.
+	// Operatator may be: =, <, <=, >, >=, like.
+	// Tries to convert values into a form where they can be compared.
+	//
+	// If comparison is impossible, an error is returned.
+	CompareTo(value interface{}, operator string) (bool, error)
 }
 
 // Reflect returns a new Reflector for the given value, or nil if the value
@@ -191,6 +207,10 @@ type reflector struct {
 
 // Ensure reflector implements Reflector.
 var _ Reflector = (*reflector)(nil)
+
+func (r *reflector) String() string {
+	return r.value.String()
+}
 
 func (r *reflector) Interface() interface{} {
 	if !r.value.CanInterface() {
@@ -316,6 +336,16 @@ func (r *reflector) IsEmpty() bool {
 	}
 
 	return false
+}
+
+func (r *reflector) Equals(value interface{}) bool {
+	// De-reference Reflectors or reflect.Value.
+	if r, ok := value.(Reflector); ok {
+		value = r.Interface()
+	} else if v, ok := value.(reflect.Value); ok {
+		value = v.Interface()
+	}
+	return reflect.DeepEqual(r.rawValue, value)
 }
 
 func (r *reflector) Struct() (StructReflector, error) {
@@ -488,6 +518,146 @@ func (r *reflector) SetValue(rawValue interface{}, convert ...bool) error {
 	}
 
 	return r.Set(val, convert...)
+}
+
+func compareStringValues(condition, a, b string) (bool, error) {
+	// Check different possible filters.
+	switch condition {
+	case "=", "==":
+		return a == b, nil
+	case "!=":
+		return a != b, nil
+	case "like":
+		return strings.Contains(a, b), nil
+	case "<":
+		return a < b, nil
+	case "<=":
+		return a <= b, nil
+	case ">":
+		return a > b, nil
+	case ">=":
+		return a >= b, nil
+	}
+
+	// Should never happen, since .CompareTo checks the operator.
+	panic("Unknown operator: " + condition)
+}
+
+func compareFloat64Values(condition string, a, b float64) (bool, error) {
+	// Check different possible filters.
+	switch condition {
+	case "=", "==":
+		return a == b, nil
+	case "!=":
+		return a != b, nil
+	case "like":
+		return false, errors.New("invalid_filter_comparison: LIKE filter can only be used for string values, not numbers")
+	case "<":
+		return a < b, nil
+	case "<=":
+		return a <= b, nil
+	case ">":
+		return a > b, nil
+	case ">=":
+		return a >= b, nil
+	}
+
+	// Should never happen, since .CompareTo checks the operator.
+	panic("Unknown operator: " + condition)
+}
+
+func (r *reflector) CompareTo(value interface{}, operator string) (bool, error) {
+	// Check operator.
+	switch operator {
+	case "=", "!=", "like", "<", "<=", ">", ">=":
+	case "==":
+		operator = "="
+	default:
+		return false, errors.New(ERR_UNKNOWN_OPERATOR)
+	}
+
+	a := interface{}(r).(Reflector)
+	aVal := r.rawValue
+	if a.DeepIsZero() {
+		aVal = float64(0)
+		a = Reflect(aVal)
+	}
+	if a.IsPtr() {
+		a = a.Elem()
+		aVal = a.Interface()
+	}
+	typA := a.Type()
+	kindA := typA.Kind()
+
+	bVal := value
+	b := Reflect(value)
+	if b == nil || b.DeepIsZero() {
+		bVal = float64(0)
+		b = Reflect(bVal)
+		aVal, bVal = bVal, aVal
+		a, b = b, a
+	}
+	if b.IsPtr() {
+		b = b.Elem()
+		bVal = b.Interface()
+	}
+	typB := b.Type()
+	kindB := typB.Kind()
+
+	// Compare time.Time values numerically.
+	if kindA == reflect.Struct && typA.PkgPath() == "time" && typA.Name() == "Time" {
+		t := aVal.(time.Time)
+		aVal = float64(t.UnixNano())
+		a = Reflect(aVal)
+		typA = a.Type()
+		kindA = typA.Kind()
+	}
+
+	if kindB == reflect.Struct && typB.PkgPath() == "time" && typB.Name() == "Time" {
+		t := bVal.(time.Time)
+		bVal = float64(t.UnixNano())
+		b = Reflect(bVal)
+		typB = b.Type()
+		kindB = typB.Kind()
+	}
+
+	if IsNumericKind(kindA) || IsNumericKind(kindB) {
+		numA, err := a.ConvertTo(float64(0))
+		if err != nil {
+			return false, errors.New("Conversion error: " + err.Error())
+		}
+
+		numB, err := b.ConvertTo(float64(0))
+		if err != nil {
+			return false, errors.New("Conversion error: " + err.Error())
+		}
+
+		return compareFloat64Values(operator, numA.(float64), numB.(float64))
+	}
+
+	if kindA == reflect.String {
+		convertedB, err := b.ConvertTo("")
+		if err != nil {
+			return false, errors.New("Conversion error: " + err.Error())
+		}
+		return compareStringValues(operator, aVal.(string), convertedB.(string))
+	}
+
+	if operator == "=" || operator == "!=" {
+		convertedB, err := b.ConvertToType(typA)
+		if err != nil {
+			return false, errors.New("Conversion error: " + err.Error())
+		}
+
+		if operator == "=" {
+			return a.Equals(convertedB), nil
+		} else {
+			return !a.Equals(convertedB), nil
+		}
+	}
+
+	msg := "impossible_comparison: " + fmt.Sprintf("Cannot compare type %v(value %v) to type %v(value %v)", kindA, aVal, kindB, bVal)
+	return false, errors.New(msg)
 }
 
 type StructReflector interface {
