@@ -1,10 +1,20 @@
 # go-reflector
 
 Go reflector is a library that makes working with reflection in Go easier and safer.
-It provides a wrappers for easy acces to struct fields, safe setting of values and more.
 
-One principal of the library is to never panic, but return nil values or errors instead, 
+Features:
+
+* Safe methods that do not panic, but return errors or nil
+* .IsNumeric(), .IsNil(), .IsZero(), .IsEmpty(), ...
+* Easily convert between different types.
+* Easily create and work with slices.
+* Easily create and work with structs.
+* Compare arbitrary values with operators (=, !=, <, <=, >, >=)
+* ...
+
+One principal of the library is to almost never panic, but return nil values or errors instead, 
 unlike the reflect package of the standard library.
+Note that it may panic when using methods prefixed with **Must**.
 
 ## Install
 
