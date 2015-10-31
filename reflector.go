@@ -137,13 +137,21 @@ type Reflector interface {
 	// When a pointer to a slice, and the slice is nil, it will be auto-initialized.
 	Slice() (SliceReflector, error)
 
+	// MustSlice is the same as Slice, but panics if the value is not a slice or
+	// a pointer to a slice.
+	MustSlice() SliceReflector
+
+	// Creates a new slice holding the same type as the value.
+	// Then returns a new SliceReflector.
+	NewSlice() SliceReflector
+
 	// Struct returns a new StructReflector if the value is either a struct or a
 	// pointer to a struct. Returns nil and an error otherwise.
 	Struct() (StructReflector, error)
 
-	// Creates a new slice holding the same type as the value.
-	// Then returns a pointer to the slice as a reflect.Value.
-	NewSlice() SliceReflector
+	// MustStruct is the same a Struct, but panics when the argumetn is not a
+	// struct or a pointer to a struct.
+	MustStruct() StructReflector
 
 	// ConvertTo tries to convert the value to the same type as the passed in
 	// value.
@@ -382,22 +390,27 @@ func (r *reflector) Equals(value interface{}) bool {
 }
 
 func (r *reflector) Slice() (SliceReflector, error) {
-	return slice(r)
+	return newSliceReflector(r)
+}
+
+func (r *reflector) MustSlice() SliceReflector {
+	s, err := r.Slice()
+	if err != nil {
+		panic(err)
+	}
+	return s
 }
 
 func (r *reflector) Struct() (StructReflector, error) {
-	if r.IsStruct() {
-		return Struct(r.Addr().Interface())
-	} else if r.IsStructPtr() {
-		if r.IsNil() {
-			newStruct := New(r.Type().Elem())
-			r.Set(newStruct)
-			return Struct(newStruct.Interface())
-		} else {
-			return Struct(r.rawValue)
-		}
+	return newStructReflector(r)
+}
+
+func (r *reflector) MustStruct() StructReflector {
+	s, err := r.Struct()
+	if err != nil {
+		panic(err)
 	}
-	return nil, errors.New(ERR_NOT_A_STRUCT)
+	return s
 }
 
 func (r *reflector) NewSlice() SliceReflector {
@@ -410,7 +423,7 @@ func (r *reflector) NewSlice() SliceReflector {
 	x := reflect.New(s.Type())
 	x.Elem().Set(s)
 
-	sliceReflector, err := slice(ReflectVal(x))
+	sliceReflector, err := newSliceReflector(ReflectVal(x))
 	if err != nil {
 		// This should never happen!
 		// Panic just to be sure, though.

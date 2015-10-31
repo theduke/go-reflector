@@ -52,10 +52,9 @@ type StructReflector interface {
 }
 
 type structReflector struct {
-	rawValue      interface{}
-	rawValueIsPtr bool
-	item          reflect.Value
-	typ           reflect.Type
+	item       Reflector
+	structItem Reflector
+	isPtr      bool
 }
 
 // Ensure that structReflector implements StructReflector.
@@ -63,70 +62,59 @@ var _ StructReflector = (*structReflector)(nil)
 
 // Struct builds a new StructReflector.
 // You may pass in a struct or a pointer to a struct.
-func Struct(s interface{}) (StructReflector, error) {
-	// Check for nil.
-	if s == nil {
-		return nil, errors.New(ERR_POINTER_OR_STRUCT_EXPECTED)
-	}
+func newStructReflector(v Reflector) (StructReflector, error) {
+	if v.IsStruct() {
+		return &structReflector{
+			item:       v,
+			structItem: v,
+		}, nil
+	} else if v.IsStructPtr() {
+		if v.IsNil() {
+			newStruct := New(v.Type().Elem())
+			if err := v.Set(newStruct); err != nil {
+				return nil, err
+			}
+		}
 
-	// Check if it is a pointer, and if so, dereference it.
-	v := reflect.ValueOf(s)
-	if !v.IsValid() {
-		return nil, errors.New(ERR_INVALID_FIELD)
+		return &structReflector{
+			item:       v,
+			structItem: v.Elem(),
+			isPtr:      true,
+		}, nil
 	}
-
-	r := &structReflector{
-		rawValue: s,
-	}
-
-	if v.Type().Kind() == reflect.Ptr {
-		r.rawValueIsPtr = true
-		v = v.Elem()
-	}
-
-	// Check that value is actually a struct.
-	if v.Type().Kind() != reflect.Struct {
-		return nil, errors.New(ERR_STRUCT_EXPECTED)
-	}
-
-	// Valid struct.
-	r.item = v
-	r.typ = v.Type()
-	return r, nil
-}
-
-// MustStruct builds a new StructReflector, and panics if building the
-// StructReflector fails.
-func MustStruct(s interface{}) StructReflector {
-	r, err := Struct(s)
-	if err != nil {
-		panic(err)
-	}
-	return r
+	return nil, errors.New(ERR_NOT_A_STRUCT)
 }
 
 func (r *structReflector) Interface() interface{} {
-	return r.rawValue
+	return r.structItem.Interface()
 }
 
 func (r *structReflector) Value() Reflector {
-	return ReflectVal(r.item)
+	return r.structItem
 }
 
 func (r *structReflector) Type() reflect.Type {
-	return r.typ
+	return r.structItem.Type()
 }
 
 func (r *structReflector) New() StructReflector {
-	ptr := reflect.New(r.typ).Interface()
-	return MustStruct(ptr)
+	ptr := New(r.structItem.Type())
+	refl, err := newStructReflector(ptr)
+
+	// This should never happen, excpet when out of memory!
+	// Panic is there just to make sure.
+	if err != nil {
+		panic(err)
+	}
+
+	return refl
 }
 
 func (r *structReflector) Field(fieldName string) Reflector {
 	if !r.HasField(fieldName) {
 		return nil
 	}
-	field := r.item.FieldByName(fieldName)
+	field := r.structItem.Value().FieldByName(fieldName)
 	if !field.IsValid() {
 		return nil
 	}
@@ -135,15 +123,15 @@ func (r *structReflector) Field(fieldName string) Reflector {
 
 func (r *structReflector) Fields() map[string]Reflector {
 	m := make(map[string]Reflector)
-	for i := 0; i < r.typ.NumField(); i++ {
-		f := r.typ.Field(i)
-		m[f.Name] = ReflectVal(r.item.Field(i))
+	for i := 0; i < r.Type().NumField(); i++ {
+		f := r.Type().Field(i)
+		m[f.Name] = ReflectVal(r.structItem.Value().Field(i))
 	}
 	return m
 }
 
 func (r *structReflector) HasField(fieldName string) bool {
-	_, ok := r.typ.FieldByName(fieldName)
+	_, ok := r.Type().FieldByName(fieldName)
 	return ok
 }
 
@@ -152,7 +140,7 @@ func (r *structReflector) FieldValue(fieldName string) (interface{}, error) {
 		return nil, errors.New(ERR_UNKNOWN_FIELD)
 	}
 
-	field := r.item.FieldByName(fieldName)
+	field := r.item.Value().FieldByName(fieldName)
 	if !field.IsValid() {
 		return nil, errors.New(ERR_INVALID_FIELD)
 	}
@@ -182,11 +170,11 @@ func (r *structReflector) ToMap(omitZero, omitEmpty bool) map[string]interface{}
 	data := make(map[string]interface{})
 	for name, field := range r.Fields() {
 		if (field.IsStruct() || field.IsStructPtr()) && !field.IsZero() {
-			s, _ := Struct(field.Interface())
+			s, _ := newStructReflector(field)
 			d := s.ToMap(omitZero, omitEmpty)
 
 			// Add embedded fields to the main data.
-			if f, _ := r.typ.FieldByName(name); f.Anonymous {
+			if f, _ := r.Type().FieldByName(name); f.Anonymous {
 				for key, val := range d {
 					data[key] = val
 				}

@@ -51,7 +51,7 @@ type sliceReflector struct {
 // Ensure sliceReflector implements SliceReflector.
 var _ SliceReflector = (*sliceReflector)(nil)
 
-func slice(value Reflector) (SliceReflector, error) {
+func newSliceReflector(value Reflector) (SliceReflector, error) {
 	if value.IsSlice() {
 		// Direct slice.
 		return &sliceReflector{
