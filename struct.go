@@ -64,6 +64,14 @@ var _ StructReflector = (*structReflector)(nil)
 // Struct builds a new StructReflector.
 // You may pass in a struct or a pointer to a struct.
 func newStructReflector(v Reflector) (StructReflector, error) {
+	// Dereference interfaces.
+	if v.IsInterface() {
+		if v.IsNil() {
+			return nil, errors.New(ERR_INVALID_VALUE)
+		}
+		v = v.Elem()
+	}
+
 	if v.IsStruct() {
 		return &structReflector{
 			item:       v,
