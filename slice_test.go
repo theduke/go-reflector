@@ -48,6 +48,16 @@ var _ = Describe("Slice", func() {
 		Expect(r.Index(5)).To(BeNil())
 	})
 
+	It("Should return items with .Items()", func() {
+		r := Reflect([]int{1, 2, 3}).MustSlice()
+		items := r.Items()
+
+		Expect(items).To(HaveLen(3))
+		Expect(items[0].Interface()).To(Equal(1))
+		Expect(items[1].Interface()).To(Equal(2))
+		Expect(items[2].Interface()).To(Equal(3))
+	})
+
 	It("Should .Append() and AppendValue()", func() {
 		s := []int{}
 		r, _ := Reflect(&s).Slice()
@@ -59,5 +69,15 @@ var _ = Describe("Slice", func() {
 
 		Expect(r.AppendValue(10, 15, 20)).ToNot(HaveOccurred())
 		Expect(s).To(Equal([]int{5, 10, 15, 20}))
+	})
+
+	It("Should convert interface slice to int", func() {
+		s := []interface{}{0, 1, 2, 3}
+		Expect(Reflect(s).MustSlice().ConvertTo(0)).To(Equal([]int{0, 1, 2, 3}))
+	})
+
+	It("Should convert int slice to float", func() {
+		s := []interface{}{0, 1, 2, 3}
+		Expect(Reflect(s).MustSlice().ConvertTo(float64(0))).To(Equal([]float64{float64(0), float64(1), float64(2), float64(3)}))
 	})
 })

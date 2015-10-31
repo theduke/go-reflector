@@ -27,6 +27,10 @@ type SliceReflector interface {
 	// index does not exist.
 	IndexValue(index int) interface{}
 
+	// Items returns a slice of Reflectors for each item in the array.
+	// Allows easy iteration over all items.
+	Items() []Reflector
+
 	// Append appends an item to the slice.
 	// Can only be used if the SliceReflector was created from a pointer to a slice.
 	//
@@ -40,6 +44,20 @@ type SliceReflector interface {
 	// Returns an error if the value is of a different type than the slice, or if
 	// the SliceReflector was not created from a pointer.
 	AppendValue(value ...interface{}) error
+
+	// ConvertTo converts the slice to a slice of a different type.
+	// This requires that the slice items can be converted with normal Go conversion.
+	//
+	// This can, for example, be used to turn a slice like []interface{} into []string,
+	// if the first slice only contains strings.
+	ConvertTo(value interface{}) (slice interface{}, err error)
+
+	// ConvertTo converts the slice to a slice of a different type.
+	// This requires that the slice items can be converted with normal Go conversion.
+	//
+	// This can, for example, be used to turn a slice like []interface{} into []string,
+	// if the first slice only contains strings.
+	ConvertToType(typ reflect.Type) (slice interface{}, err error)
 }
 
 type sliceReflector struct {
@@ -120,6 +138,18 @@ func (s *sliceReflector) IndexValue(i int) interface{} {
 	}
 }
 
+func (s *sliceReflector) Items() []Reflector {
+	sl := make([]Reflector, 0)
+	for i := 0; i < s.Len(); i++ {
+		item := s.Index(i)
+		if item.IsInterface() && !item.IsNil() {
+			item = item.Elem()
+		}
+		sl = append(sl, item)
+	}
+	return sl
+}
+
 func (s *sliceReflector) Append(values ...Reflector) error {
 	if !s.canAppend {
 		return errors.New(ERR_CANT_APPEND_NOT_A_POINTER)
@@ -146,4 +176,34 @@ func (s *sliceReflector) AppendValue(values ...interface{}) error {
 		}
 	}
 	return nil
+}
+
+func (s *sliceReflector) ConvertTo(value interface{}) (interface{}, error) {
+	r := Reflect(value)
+	if r == nil {
+		return nil, errors.New(ERR_INVALID_VALUE)
+	}
+	return s.ConvertToType(r.Type())
+}
+
+func (s *sliceReflector) ConvertToType(typ reflect.Type) (interface{}, error) {
+	newSlice := New(typ).Elem().NewSlice()
+	if s.Len() == 0 {
+		return newSlice, nil
+	}
+
+	for _, item := range s.Items() {
+		if item.Type() != typ {
+			if !item.Type().ConvertibleTo(typ) {
+				return nil, errors.New(ERR_TYPE_MISMATCH)
+			}
+			item = ReflectVal(item.Value().Convert(typ))
+		}
+
+		if err := newSlice.Append(item); err != nil {
+			return nil, err
+		}
+	}
+
+	return newSlice.Interface(), nil
 }
