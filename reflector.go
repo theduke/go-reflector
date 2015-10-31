@@ -1,9 +1,7 @@
-/**
- * reflector is a utility library that makes working with reflection easier.
- *
- * For more information an usage examples, check the github repository at
- * https://github.com/theduke/go-reflector.
- */
+// go-reflector is a utility library that makes working with reflection easier and safer.
+//
+// For more information an usage examples, check the Github repository at
+// https://github.com/theduke/go-reflector.
 package reflector
 
 import (
@@ -46,6 +44,7 @@ func IsNumericKind(kind reflect.Kind) bool {
 	return false
 }
 
+// New creates a new instance of the given type, and returns a Reflector.
 func New(typ reflect.Type) Reflector {
 	return Reflect(reflect.New(typ))
 }
