@@ -280,7 +280,7 @@ var _ = Describe("Reflector", func() {
 		})
 
 		It("Should create a new slice with .NewSlice()", func() {
-			_, ok := Reflect(1).NewSlice().Interface().([]int)
+			_, ok := Reflect(1).NewSlice().SliceInterface().([]int)
 			Expect(ok).To(BeTrue())
 		})
 

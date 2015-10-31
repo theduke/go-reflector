@@ -28,6 +28,7 @@ const (
 	ERR_STRUCT_EXPECTED            = "struct_expected"
 	ERR_NIL_POINTER                = "nil_pointer"
 	ERR_NOT_A_STRUCT               = "not_a_struct"
+	ERR_NOT_A_SLICE                = "not_a_slice"
 	ERR_UNSETTABLE_VALUE           = "unsettable_value"
 	ERR_TYPE_MISMATCH              = "type_mismatch"
 	ERR_UNCOMPARABLE_VALUES        = "uncomparable_values"
@@ -64,6 +65,8 @@ type Reflector interface {
 	// Type returns the raw reflect.Type.
 	Type() reflect.Type
 
+	Kind() reflect.Kind
+
 	// Elem will return the value a pointer points to, or the value an
 	// interface contains.
 	// If the value is neither an interface or a pointer, or the
@@ -89,6 +92,12 @@ type Reflector interface {
 
 	// IsNumeric returns true if the value is any numeric type (uint, int, float64, ...)
 	IsNumeric() bool
+
+	// IsIterable returns true if the value is Array, Chan, Map, Slice, or String.
+	IsIterable() bool
+
+	// Len returns the lenght if value is Array, Chan, Map, Slice, or String, or 0.
+	Len() int
 
 	// IsNil returns true if the value has a nil-able type and is nil, or false.
 	//
@@ -123,13 +132,20 @@ type Reflector interface {
 	// You can pass in the raw value, but also a Reflector or reflect.Value.
 	Equals(value interface{}) bool
 
+	// Slice returns a new SliceReflector if the value is a slice or a pointer to a slice, or a ptr to a ptr of a slice, or nil
+	// otherwise.
+	//
+	// If you want to auto-initialize a remote slice pointer with a new slice, you must pass a pointer to a pointer to
+	// the slice.
+	Slice() (SliceReflector, error)
+
 	// Struct returns a new StructReflector if the value is either a struct or a
 	// pointer to a struct. Returns nil and an error otherwise.
 	Struct() (StructReflector, error)
 
 	// Creates a new slice holding the same type as the value.
 	// Then returns a pointer to the slice as a reflect.Value.
-	NewSlice() reflect.Value
+	NewSlice() SliceReflector
 
 	// ConvertTo tries to convert the value to the same type as the passed in
 	// value.
@@ -227,6 +243,10 @@ func (r *reflector) Type() reflect.Type {
 	return r.typ
 }
 
+func (r *reflector) Kind() reflect.Kind {
+	return r.typ.Kind()
+}
+
 func (r *reflector) Elem() Reflector {
 	if r.IsNil() {
 		return nil
@@ -292,6 +312,21 @@ func (r *reflector) IsNumeric() bool {
 	return IsNumericKind(r.typ.Kind())
 }
 
+func (r *reflector) IsIterable() bool {
+	switch r.Kind() {
+	case reflect.Array, reflect.Chan, reflect.Map, reflect.Slice, reflect.String:
+		return true
+	}
+	return false
+}
+
+func (r *reflector) Len() int {
+	if r.IsIterable() {
+		return r.value.Len()
+	}
+	return 0
+}
+
 func (r *reflector) IsNil() bool {
 	switch r.typ.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
@@ -348,6 +383,10 @@ func (r *reflector) Equals(value interface{}) bool {
 	return reflect.DeepEqual(r.rawValue, value)
 }
 
+func (r *reflector) Slice() (SliceReflector, error) {
+	return slice(r)
+}
+
 func (r *reflector) Struct() (StructReflector, error) {
 	if r.IsStruct() {
 		return Struct(r.Addr().Interface())
@@ -363,18 +402,23 @@ func (r *reflector) Struct() (StructReflector, error) {
 	return nil, errors.New(ERR_NOT_A_STRUCT)
 }
 
-func (r *reflector) NewSlice() reflect.Value {
+func (r *reflector) NewSlice() SliceReflector {
 	// Build new array.
 	// See http://stackoverflow.com/questions/25384640/why-golang-reflect-makeslice-returns-un-addressable-value
 	// Create a slice to begin with
-
-	slice := reflect.MakeSlice(reflect.SliceOf(r.typ), 0, 0)
+	s := reflect.MakeSlice(reflect.SliceOf(r.typ), 0, 0)
 
 	// Create a pointer to a slice value and set it to the slice
-	x := reflect.New(slice.Type())
-	x.Elem().Set(slice)
+	x := reflect.New(s.Type())
+	x.Elem().Set(s)
 
-	return x.Elem()
+	sliceReflector, err := slice(ReflectVal(x))
+	if err != nil {
+		// This should never happen!
+		// Panic just to be sure, though.
+		panic(err)
+	}
+	return sliceReflector
 }
 
 func (r *reflector) ConvertTo(targetVal interface{}) (interface{}, error) {
@@ -508,6 +552,7 @@ func (r *reflector) Set(value Reflector, convert ...bool) error {
 		}
 	}
 	r.value.Set(value.Value())
+	r.rawValue = value.Interface()
 	return nil
 }
 
@@ -658,247 +703,4 @@ func (r *reflector) CompareTo(value interface{}, operator string) (bool, error) 
 
 	msg := "impossible_comparison: " + fmt.Sprintf("Cannot compare type %v(value %v) to type %v(value %v)", kindA, aVal, kindB, bVal)
 	return false, errors.New(msg)
-}
-
-type StructReflector interface {
-	// Interface returns the struct as interface{}.
-	Interface() interface{}
-
-	// Value returns the raw reflect.Value.
-	Value() Reflector
-
-	// Type returns the raw reflect.Type.
-	Type() reflect.Type
-
-	// New creates a new instance of the struct and returns an reflector.
-	New() StructReflector
-
-	// Returns a Reflector for a field, or nil if the field does not exist.
-	Field(fieldName string) Reflector
-
-	// Fields returns a map of fields, allowing you to easily iterate over all fields.
-	Fields() map[string]Reflector
-
-	// HasField returns true if the struct has a field with the specified name.
-	HasField(fieldName string) bool
-
-	// FieldValue returns the value of a struct field, or an error if the field
-	// does not exist.
-	FieldValue(fieldName string) (interface{}, error)
-
-	// UFieldValue returns the value of a struct field, or nil if the field
-	// does not exist.
-	UFieldValue(fieldName string) interface{}
-
-	SetField(fieldName string, value interface{}, convert ...bool) error
-
-	// ToMap recursively converts the struct to a map[string]interface{} map.
-	// You can optionally omit zero or empty values.
-	ToMap(omitZero, omitEmpty bool) map[string]interface{}
-
-	// FromMap sets struct fields from a map[string]interface{} map.
-	//
-	// You can optionally enable conversion of types that do not match by
-	// passing true as a second argument.
-	//
-	// An error will be returned if values have a type mismatch, or, if
-	// conversion is enabled, if a field conversion fails.
-	FromMap(data map[string]interface{}, convert ...bool) error
-}
-
-type structReflector struct {
-	rawValue      interface{}
-	rawValueIsPtr bool
-	item          reflect.Value
-	typ           reflect.Type
-}
-
-// Ensure that structReflector implements StructReflector.
-var _ StructReflector = (*structReflector)(nil)
-
-// Struct builds a new StructReflector.
-// You may pass in a struct or a pointer to a struct.
-func Struct(s interface{}) (StructReflector, error) {
-	// Check for nil.
-	if s == nil {
-		return nil, errors.New(ERR_POINTER_OR_STRUCT_EXPECTED)
-	}
-
-	// Check if it is a pointer, and if so, dereference it.
-	v := reflect.ValueOf(s)
-	if !v.IsValid() {
-		return nil, errors.New(ERR_INVALID_FIELD)
-	}
-
-	r := &structReflector{
-		rawValue: s,
-	}
-
-	if v.Type().Kind() == reflect.Ptr {
-		r.rawValueIsPtr = true
-		v = v.Elem()
-	}
-
-	// Check that value is actually a struct.
-	if v.Type().Kind() != reflect.Struct {
-		return nil, errors.New(ERR_STRUCT_EXPECTED)
-	}
-
-	// Valid struct.
-	r.item = v
-	r.typ = v.Type()
-	return r, nil
-}
-
-// MustStruct builds a new StructReflector, and panics if building the
-// StructReflector fails.
-func MustStruct(s interface{}) StructReflector {
-	r, err := Struct(s)
-	if err != nil {
-		panic(err)
-	}
-	return r
-}
-
-func (r *structReflector) Interface() interface{} {
-	return r.rawValue
-}
-
-func (r *structReflector) Value() Reflector {
-	return ReflectVal(r.item)
-}
-
-func (r *structReflector) Type() reflect.Type {
-	return r.typ
-}
-
-func (r *structReflector) New() StructReflector {
-	ptr := reflect.New(r.typ).Interface()
-	return MustStruct(ptr)
-}
-
-func (r *structReflector) Field(fieldName string) Reflector {
-	if !r.HasField(fieldName) {
-		return nil
-	}
-	field := r.item.FieldByName(fieldName)
-	if !field.IsValid() {
-		return nil
-	}
-	return ReflectVal(field)
-}
-
-func (r *structReflector) Fields() map[string]Reflector {
-	m := make(map[string]Reflector)
-	for i := 0; i < r.typ.NumField(); i++ {
-		f := r.typ.Field(i)
-		m[f.Name] = ReflectVal(r.item.Field(i))
-	}
-	return m
-}
-
-func (r *structReflector) HasField(fieldName string) bool {
-	_, ok := r.typ.FieldByName(fieldName)
-	return ok
-}
-
-func (r *structReflector) FieldValue(fieldName string) (interface{}, error) {
-	if !r.HasField(fieldName) {
-		return nil, errors.New(ERR_UNKNOWN_FIELD)
-	}
-
-	field := r.item.FieldByName(fieldName)
-	if !field.IsValid() {
-		return nil, errors.New(ERR_INVALID_FIELD)
-	}
-	if !field.CanInterface() {
-		return nil, errors.New(ERR_UNINTERFACEABLE_FIELD)
-	}
-	return field.Interface(), nil
-}
-
-func (r *structReflector) UFieldValue(fieldName string) interface{} {
-	v, err := r.FieldValue(fieldName)
-	if err != nil {
-		return nil
-	}
-	return v
-}
-
-func (r *structReflector) SetField(fieldName string, value interface{}, convert ...bool) error {
-	field := r.Field(fieldName)
-	if field == nil {
-		return errors.New(ERR_UNKNOWN_FIELD)
-	}
-	return field.SetValue(value, convert...)
-}
-
-func (r *structReflector) ToMap(omitZero, omitEmpty bool) map[string]interface{} {
-	data := make(map[string]interface{})
-	for name, field := range r.Fields() {
-		if (field.IsStruct() || field.IsStructPtr()) && !field.IsZero() {
-			s, _ := Struct(field.Interface())
-			d := s.ToMap(omitZero, omitEmpty)
-
-			// Add embedded fields to the main data.
-			if f, _ := r.typ.FieldByName(name); f.Anonymous {
-				for key, val := range d {
-					data[key] = val
-				}
-			} else {
-				data[name] = d
-			}
-			continue
-		}
-
-		if omitEmpty && field.IsEmpty() {
-			continue
-		}
-		if field.IsZero() {
-			if omitZero {
-				continue
-			} else {
-				data[name] = nil
-				continue
-			}
-		}
-		data[name] = field.Interface()
-	}
-	return data
-}
-
-func (r *structReflector) FromMap(data map[string]interface{}, convert ...bool) error {
-	for key, rawVal := range data {
-		field := r.Field(key)
-		if field == nil {
-			continue
-		}
-
-		val := Reflect(rawVal)
-		if val == nil || val.IsZero() {
-			continue
-		}
-
-		// Handle nested structs.
-		if nestedMap, ok := rawVal.(map[string]interface{}); ok && field.IsStruct() || field.IsStructPtr() {
-			// Obtain StructReflector.
-			nestedStruct, err := field.Struct()
-			if err != nil {
-				return err
-			}
-			// run FromMap on nested struct.
-			if err := nestedStruct.FromMap(nestedMap, convert...); err != nil {
-				return err
-			}
-
-			// nested fromMap succeeded
-			continue
-		}
-
-		// Handle regular values.
-		if err := field.Set(val, convert...); err != nil {
-			return errors.New("Error in field " + key + ": " + err.Error())
-		}
-	}
-	return nil
 }
