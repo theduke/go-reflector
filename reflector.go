@@ -81,6 +81,8 @@ type Reflector interface {
 	// New creates a new instance of the current values type and returns a pointer.
 	New() Reflector
 
+	IsValid() bool
+
 	IsPtr() bool
 	IsString() bool
 	IsSlice() bool
@@ -207,9 +209,6 @@ func Reflect(value interface{}) Reflector {
 	} else {
 		val = reflect.ValueOf(value)
 	}
-	if !val.IsValid() {
-		return nil
-	}
 
 	return &reflector{
 		value: val,
@@ -330,7 +329,14 @@ func (r *reflector) Len() int {
 	return 0
 }
 
+func (r *reflector) IsValid() bool {
+	return r.value.IsValid()
+}
+
 func (r *reflector) IsNil() bool {
+	if !r.IsValid() {
+		return true
+	}
 	switch r.Type().Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
 		// Only these types can be nil.
@@ -544,6 +550,8 @@ func (r *reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 
 func (r *reflector) Set(value Reflector, convert ...bool) error {
 	if value == nil {
+		return errors.New(ERR_INVALID_VALUE)
+	} else if !value.IsValid() {
 		return errors.New(ERR_INVALID_VALUE)
 	} else if !r.value.CanSet() {
 		return errors.New(ERR_UNSETTABLE_VALUE)

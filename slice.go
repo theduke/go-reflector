@@ -87,6 +87,10 @@ type sliceReflector struct {
 var _ SliceReflector = (*sliceReflector)(nil)
 
 func newSliceReflector(value Reflector) (SliceReflector, error) {
+	if !value.IsValid() {
+		return nil, errors.New(ERR_INVALID_VALUE)
+	}
+
 	if value.IsSlice() {
 		// Direct slice.
 		return &sliceReflector{

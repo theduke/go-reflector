@@ -44,16 +44,18 @@ var _ = Describe("Reflector", func() {
 	})
 
 	Describe("Reflector", func() {
-		It("Should return nil for invalid values on Reflect()", func() {
-			Expect(Reflect(nil)).To(BeNil())
-		})
+		/*
+			It("Should return nil for invalid values on Reflect()", func() {
+				Expect(Reflect(nil)).To(BeNil())
+			})
+
+			It("Should return nil on Reflect() with invalid val", func() {
+				Expect(Reflect(reflect.ValueOf(nil))).To(BeNil())
+			})
+		*/
 
 		It("Should create reflector with Reflect()", func() {
 			Expect(Reflect(22)).ToNot(BeNil())
-		})
-
-		It("Should return nil on Reflect() with invalid val", func() {
-			Expect(Reflect(reflect.ValueOf(nil))).To(BeNil())
 		})
 
 		It("Should create reflector with Reflect()", func() {
@@ -83,7 +85,7 @@ var _ = Describe("Reflector", func() {
 			var i testInterface
 			Expect(Reflect(0).Elem()).To(BeNil())
 			Expect(Reflect(s).Elem()).To(BeNil())
-			Expect(Reflect(i)).To(BeNil())
+			Expect(Reflect(i).IsValid()).To(BeFalse())
 
 			s = &testStruct{}
 			i = &testStruct{}
@@ -218,7 +220,7 @@ var _ = Describe("Reflector", func() {
 			Expect(Reflect(ptr).DeepIsZero()).To(BeFalse())
 
 			var i testInterface
-			Expect(Reflect(i)).To(BeNil())
+			Expect(Reflect(i).IsValid()).To(BeFalse())
 			i = testStruct{}
 			Expect(Reflect(i).DeepIsZero()).To(BeTrue())
 			i = testStruct{Int: 22}
