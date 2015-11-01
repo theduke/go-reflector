@@ -10,8 +10,8 @@ import (
 - */
 
 type structFieldSorter struct {
-	slice    SliceReflector
-	fields   []Reflector
+	slice    *SliceReflector
+	fields   []*Reflector
 	operator string
 
 	err error
@@ -38,12 +38,12 @@ func (s structFieldSorter) Less(i, j int) bool {
 	return flag
 }
 
-func newStructFieldSorter(slice SliceReflector, fieldName string, asc bool) (*structFieldSorter, error) {
+func newStructFieldSorter(slice *SliceReflector, fieldName string, asc bool) (*structFieldSorter, error) {
 	if slice.Len() < 1 {
 		return nil, errors.New("empty_slice")
 	}
 
-	fields := make([]Reflector, 0, slice.Cap())
+	fields := make([]*Reflector, 0, slice.Cap())
 
 	for _, item := range slice.Items() {
 		r, err := item.Struct()
@@ -74,7 +74,7 @@ func newStructFieldSorter(slice SliceReflector, fieldName string, asc bool) (*st
 	}, nil
 }
 
-func SortStructSlice(items SliceReflector, field string, ascending bool) error {
+func SortStructSlice(items *SliceReflector, field string, ascending bool) error {
 	sorter, err := newStructFieldSorter(items, field, ascending)
 	if err != nil {
 		return err

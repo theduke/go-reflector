@@ -5,79 +5,15 @@ import (
 	"reflect"
 )
 
-type StructReflector interface {
-	// Interface returns the struct as interface{}.
-	Interface() interface{}
-
-	// Value returns the raw reflect.Value.
-	Value() Reflector
-
-	// Type returns the reflect.Type of the struct.
-	Type() reflect.Type
-
-	// Name returns the name of the struct.
-	Name() string
-
-	// FullName returns the name of the struct, prefixed with the full package path.
-	//
-	// EG: for time.Time, it would return "time.Time".
-	FullName() string
-
-	// FieldInfo returns a map of all field fields (mapped by field name).
-	FieldInfo() map[string]*reflect.StructField
-
-	// New creates a new instance of the struct and returns an reflector.
-	New() StructReflector
-
-	// Returns a Reflector for a field, or nil if the field does not exist.
-	Field(fieldName string) Reflector
-
-	// Fields returns a map of fields, allowing you to easily iterate over all fields.
-	Fields() map[string]Reflector
-
-	// EmbeddedFields returns all embedded fields as a map.
-	EmbeddedFields() map[string]StructReflector
-
-	// HasField returns true if the struct has a field with the specified name.
-	HasField(fieldName string) bool
-
-	// FieldValue returns the value of a struct field, or an error if the field
-	// does not exist.
-	FieldValue(fieldName string) (interface{}, error)
-
-	// UFieldValue returns the value of a struct field, or nil if the field
-	// does not exist.
-	UFieldValue(fieldName string) interface{}
-
-	SetFieldValue(fieldName string, value interface{}, convert ...bool) error
-	SetField(fieldName string, value Reflector, convert ...bool) error
-
-	// ToMap recursively converts the struct to a map[string]interface{} map.
-	// You can optionally omit zero or empty values.
-	ToMap(omitZero, omitEmpty bool) map[string]interface{}
-
-	// FromMap sets struct fields from a map[string]interface{} map.
-	//
-	// You can optionally enable conversion of types that do not match by
-	// passing true as a second argument.
-	//
-	// An error will be returned if values have a type mismatch, or, if
-	// conversion is enabled, if a field conversion fails.
-	FromMap(data map[string]interface{}, convert ...bool) error
-}
-
-type structReflector struct {
-	item       Reflector
-	structItem Reflector
+type StructReflector struct {
+	item       *Reflector
+	structItem *Reflector
 	isPtr      bool
 }
 
-// Ensure that structReflector implements StructReflector.
-var _ StructReflector = (*structReflector)(nil)
-
 // Struct builds a new StructReflector.
 // You may pass in a struct or a pointer to a struct.
-func newStructReflector(v Reflector) (StructReflector, error) {
+func newStructReflector(v *Reflector) (*StructReflector, error) {
 	if !v.IsValid() {
 		return nil, errors.New(ERR_INVALID_VALUE)
 	}
@@ -91,7 +27,7 @@ func newStructReflector(v Reflector) (StructReflector, error) {
 	}
 
 	if v.IsStruct() {
-		return &structReflector{
+		return &StructReflector{
 			item:       v,
 			structItem: v,
 		}, nil
@@ -103,7 +39,7 @@ func newStructReflector(v Reflector) (StructReflector, error) {
 			}
 		}
 
-		return &structReflector{
+		return &StructReflector{
 			item:       v,
 			structItem: v.Elem(),
 			isPtr:      true,
@@ -112,27 +48,27 @@ func newStructReflector(v Reflector) (StructReflector, error) {
 	return nil, errors.New(ERR_NOT_A_STRUCT)
 }
 
-func (r *structReflector) Interface() interface{} {
+func (r *StructReflector) Interface() interface{} {
 	return r.structItem.Interface()
 }
 
-func (r *structReflector) Value() Reflector {
+func (r *StructReflector) Value() *Reflector {
 	return r.structItem
 }
 
-func (r *structReflector) Type() reflect.Type {
+func (r *StructReflector) Type() reflect.Type {
 	return r.structItem.Type()
 }
 
-func (r *structReflector) Name() string {
+func (r *StructReflector) Name() string {
 	return r.Type().Name()
 }
 
-func (r *structReflector) FullName() string {
+func (r *StructReflector) FullName() string {
 	return r.Type().PkgPath() + "." + r.Name()
 }
 
-func (r *structReflector) FieldInfo() map[string]*reflect.StructField {
+func (r *StructReflector) FieldInfo() map[string]*reflect.StructField {
 	m := make(map[string]*reflect.StructField, 0)
 	for i := 0; i < r.Type().NumField(); i++ {
 		f := r.Type().Field(i)
@@ -141,7 +77,7 @@ func (r *structReflector) FieldInfo() map[string]*reflect.StructField {
 	return m
 }
 
-func (r *structReflector) New() StructReflector {
+func (r *StructReflector) New() *StructReflector {
 	ptr := New(r.structItem.Type())
 	refl, err := newStructReflector(ptr)
 
@@ -154,7 +90,7 @@ func (r *structReflector) New() StructReflector {
 	return refl
 }
 
-func (r *structReflector) Field(fieldName string) Reflector {
+func (r *StructReflector) Field(fieldName string) *Reflector {
 	if !r.HasField(fieldName) {
 		return nil
 	}
@@ -165,16 +101,16 @@ func (r *structReflector) Field(fieldName string) Reflector {
 	return Reflect(field)
 }
 
-func (r *structReflector) Fields() map[string]Reflector {
-	m := make(map[string]Reflector)
+func (r *StructReflector) Fields() map[string]*Reflector {
+	m := make(map[string]*Reflector)
 	for name, _ := range r.FieldInfo() {
 		m[name] = Reflect(r.structItem.Value().FieldByName(name))
 	}
 	return m
 }
 
-func (r *structReflector) EmbeddedFields() map[string]StructReflector {
-	m := make(map[string]StructReflector)
+func (r *StructReflector) EmbeddedFields() map[string]*StructReflector {
+	m := make(map[string]*StructReflector)
 	for name, field := range r.FieldInfo() {
 		if field.Anonymous {
 			m[name] = Reflect(r.structItem.Value().FieldByName(name)).MustStruct()
@@ -183,12 +119,12 @@ func (r *structReflector) EmbeddedFields() map[string]StructReflector {
 	return m
 }
 
-func (r *structReflector) HasField(fieldName string) bool {
+func (r *StructReflector) HasField(fieldName string) bool {
 	_, ok := r.Type().FieldByName(fieldName)
 	return ok
 }
 
-func (r *structReflector) FieldValue(fieldName string) (interface{}, error) {
+func (r *StructReflector) FieldValue(fieldName string) (interface{}, error) {
 	if !r.HasField(fieldName) {
 		return nil, errors.New(ERR_UNKNOWN_FIELD)
 	}
@@ -203,7 +139,7 @@ func (r *structReflector) FieldValue(fieldName string) (interface{}, error) {
 	return field.Interface(), nil
 }
 
-func (r *structReflector) UFieldValue(fieldName string) interface{} {
+func (r *StructReflector) UFieldValue(fieldName string) interface{} {
 	v, err := r.FieldValue(fieldName)
 	if err != nil {
 		return nil
@@ -211,7 +147,7 @@ func (r *structReflector) UFieldValue(fieldName string) interface{} {
 	return v
 }
 
-func (r *structReflector) SetFieldValue(fieldName string, value interface{}, convert ...bool) error {
+func (r *StructReflector) SetFieldValue(fieldName string, value interface{}, convert ...bool) error {
 	v := Reflect(value)
 	if v == nil {
 		return errors.New(ERR_INVALID_VALUE)
@@ -219,7 +155,7 @@ func (r *structReflector) SetFieldValue(fieldName string, value interface{}, con
 	return r.SetField(fieldName, v, convert...)
 }
 
-func (r *structReflector) SetField(fieldName string, value Reflector, convert ...bool) error {
+func (r *StructReflector) SetField(fieldName string, value *Reflector, convert ...bool) error {
 	field := r.Field(fieldName)
 	if field == nil {
 		return errors.New(ERR_UNKNOWN_FIELD)
@@ -227,7 +163,7 @@ func (r *structReflector) SetField(fieldName string, value Reflector, convert ..
 	return field.Set(value, convert...)
 }
 
-func (r *structReflector) ToMap(omitZero, omitEmpty bool) map[string]interface{} {
+func (r *StructReflector) ToMap(omitZero, omitEmpty bool) map[string]interface{} {
 	data := make(map[string]interface{})
 	for name, field := range r.Fields() {
 		if (field.IsStruct() || field.IsStructPtr()) && !field.IsZero() {
@@ -261,7 +197,7 @@ func (r *structReflector) ToMap(omitZero, omitEmpty bool) map[string]interface{}
 	return data
 }
 
-func (r *structReflector) FromMap(data map[string]interface{}, convert ...bool) error {
+func (r *StructReflector) FromMap(data map[string]interface{}, convert ...bool) error {
 	for key, rawVal := range data {
 		field := r.Field(key)
 		if field == nil {

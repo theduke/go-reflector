@@ -46,163 +46,13 @@ func IsNumericKind(kind reflect.Kind) bool {
 }
 
 // New creates a new instance of the given type, and returns a Reflector.
-func New(typ reflect.Type) Reflector {
+func New(typ reflect.Type) *Reflector {
 	return Reflect(reflect.New(typ))
-}
-
-type Reflector interface {
-	String() string
-
-	// Interface returns the value as interface{} or nil if the value can't be
-	// interfaced.
-	//
-	// Note that in contrast to reflect.Value.Interface(), this method can not
-	// panic, but returns nil instead.
-	Interface() interface{}
-
-	// Value returns the raw reflect.Value.
-	Value() reflect.Value
-
-	// Type returns the raw reflect.Type.
-	Type() reflect.Type
-
-	Kind() reflect.Kind
-
-	// Elem will return the value a pointer points to, or the value an
-	// interface contains.
-	// If the value is neither an interface or a pointer, or the
-	// pointer/interface is nil, it will return nil.
-	Elem() Reflector
-
-	// Addr will return a Reflector for the address of the value, or nil if it
-	// can not be addressed.
-	Addr() Reflector
-
-	// New creates a new instance of the current values type and returns a pointer.
-	New() Reflector
-
-	IsValid() bool
-
-	IsPtr() bool
-	IsString() bool
-	IsSlice() bool
-	IsMap() bool
-	IsStruct() bool
-	// IsStructPtr returns true if the value is a pointer holding a struct.
-	IsStructPtr() bool
-	IsInterface() bool
-	IsChan() bool
-	IsFunc() bool
-	IsArray() bool
-	IsBool() bool
-
-	// IsNumeric returns true if the value is any numeric type (uint, int, float64, ...)
-	IsNumeric() bool
-
-	// IsIterable returns true if the value is Array, Chan, Map, Slice, or String.
-	IsIterable() bool
-
-	// Len returns the lenght if value is Array, Chan, Map, Slice, or String, or 0.
-	Len() int
-
-	// IsNil returns true if the value has a nil-able type and is nil, or false.
-	//
-	// Note that in constrast to reflect.Value.IsNil() this method can't panic,
-	// and will just return false for values that can't be nil.
-	IsNil() bool
-
-	// IsZero returns true if the value is nil (checked with Reflector.IsNil())
-	// or equal to the zero value of the type.
-	IsZero() bool
-
-	// DeepIsZero is mostly the same as IsZero, but if a pointer is given, it
-	// will dereference the pointer and will check if the value pointed to is
-	// zero.
-	DeepIsZero() bool
-
-	// IsEmpty returns true if the value is empty.
-	//
-	// It first checks if the value is zero with Reflector.IsZero().
-	// If the value is not zero, it will return true for:
-	// * empty maps.
-	// * slices of length 0.
-	// * arrays of length 0.
-	// * strings of length 0.
-	// * chans with 0 items.
-	//
-	// If non of these tests match, it will return false.
-	IsEmpty() bool
-
-	// Equals compares the current to the given value using reflect.DeepEqual.
-	//
-	// You can pass in the raw value, but also a Reflector or reflect.Value.
-	Equals(value interface{}) bool
-
-	// Slice returns a new SliceReflector if the value is a slice or a pointer to a slice. Returns nil otherwise.
-	// When a pointer to a slice, and the slice is nil, it will be auto-initialized.
-	Slice() (SliceReflector, error)
-
-	// MustSlice is the same as Slice, but panics if the value is not a slice or
-	// a pointer to a slice.
-	MustSlice() SliceReflector
-
-	// Creates a new slice holding the same type as the value.
-	// Then returns a new SliceReflector.
-	NewSlice() SliceReflector
-
-	// Struct returns a new StructReflector if the value is either a struct or a
-	// pointer to a struct. Returns nil and an error otherwise.
-	Struct() (StructReflector, error)
-
-	// MustStruct is the same a Struct, but panics when the argumetn is not a
-	// struct or a pointer to a struct.
-	MustStruct() StructReflector
-
-	// ConvertTo tries to convert the value to the same type as the passed in
-	// value.
-	// If successful, the converted value is returned, or nil and an error
-	// otherwise.
-	//
-	// For details on conversion rules, see ConvertToType().
-	//
-	// To convert to a reflect.Type, use Reflector.ConvertToType.
-	// If successful, the converted value is returned, or nil and an error
-	// otherwise.
-	//
-	// Can not panic!
-	ConvertTo(typeValue interface{}) (interface{}, error)
-
-	// ConvertToType tries to convert the value to the given type.
-	// Returns the converted value if successful, or nil and an error.
-	//
-	// Can not panic!
-	ConvertToType(targetType reflect.Type) (interface{}, error)
-
-	// Sets the field to the given value.
-	//
-	// Returns an error if the types are not compatible.
-	// If you pass true as a second argument, a type conversion will be
-	// attempted.
-	Set(value Reflector, convert ...bool) error
-
-	// Sets the field to the given value.
-	//
-	// Returns an error if the types are not compatible.
-	// If you pass true as a second argument, a type conversion will be
-	// attempted.
-	SetValue(value interface{}, convert ...bool) error
-
-	// CompareTo tries to convert the current to the given value using an operator.
-	// Operatator may be: =, <, <=, >, >=, like.
-	// Tries to convert values into a form where they can be compared.
-	//
-	// If comparison is impossible, an error is returned.
-	CompareTo(value interface{}, operator string) (bool, error)
 }
 
 // Reflect returns a new Reflector for the given value, or nil if the value
 // is invalid.
-func Reflect(value interface{}) Reflector {
+func Reflect(value interface{}) *Reflector {
 	var val reflect.Value
 	if v, ok := value.(reflect.Value); ok {
 		val = v
@@ -210,42 +60,39 @@ func Reflect(value interface{}) Reflector {
 		val = reflect.ValueOf(value)
 	}
 
-	return &reflector{
+	return &Reflector{
 		value: val,
 	}
 }
 
-type reflector struct {
+type Reflector struct {
 	value reflect.Value
 }
 
-// Ensure reflector implements Reflector.
-var _ Reflector = (*reflector)(nil)
-
-func (r *reflector) String() string {
+func (r *Reflector) String() string {
 	return r.value.String()
 }
 
-func (r *reflector) Interface() interface{} {
+func (r *Reflector) Interface() interface{} {
 	if !r.value.CanInterface() {
 		return nil
 	}
 	return r.value.Interface()
 }
 
-func (r *reflector) Value() reflect.Value {
+func (r *Reflector) Value() reflect.Value {
 	return r.value
 }
 
-func (r *reflector) Type() reflect.Type {
+func (r *Reflector) Type() reflect.Type {
 	return r.value.Type()
 }
 
-func (r *reflector) Kind() reflect.Kind {
+func (r *Reflector) Kind() reflect.Kind {
 	return r.Type().Kind()
 }
 
-func (r *reflector) Elem() Reflector {
+func (r *Reflector) Elem() *Reflector {
 	if r.IsNil() {
 		return nil
 	}
@@ -255,66 +102,66 @@ func (r *reflector) Elem() Reflector {
 	return Reflect(r.value.Elem())
 }
 
-func (r *reflector) Addr() Reflector {
+func (r *Reflector) Addr() *Reflector {
 	if !r.value.CanAddr() {
 		return nil
 	}
 	return Reflect(r.value.Addr().Interface())
 }
 
-func (r *reflector) New() Reflector {
+func (r *Reflector) New() *Reflector {
 	return New(r.Type())
 }
 
-func (r *reflector) IsPtr() bool {
+func (r *Reflector) IsPtr() bool {
 	return r.Type().Kind() == reflect.Ptr
 }
 
-func (r *reflector) IsString() bool {
+func (r *Reflector) IsString() bool {
 	return r.Type().Kind() == reflect.String
 }
 
-func (r *reflector) IsSlice() bool {
+func (r *Reflector) IsSlice() bool {
 	return r.Type().Kind() == reflect.Slice
 }
 
-func (r *reflector) IsMap() bool {
+func (r *Reflector) IsMap() bool {
 	return r.Type().Kind() == reflect.Map
 }
 
-func (r *reflector) IsStruct() bool {
+func (r *Reflector) IsStruct() bool {
 	return r.Type().Kind() == reflect.Struct
 }
 
-func (r *reflector) IsStructPtr() bool {
+func (r *Reflector) IsStructPtr() bool {
 	return r.Type().Kind() == reflect.Ptr && r.Type().Elem().Kind() == reflect.Struct
 }
 
-func (r *reflector) IsInterface() bool {
+func (r *Reflector) IsInterface() bool {
 	return r.Type().Kind() == reflect.Interface
 }
 
-func (r *reflector) IsChan() bool {
+func (r *Reflector) IsChan() bool {
 	return r.Type().Kind() == reflect.Chan
 }
 
-func (r *reflector) IsFunc() bool {
+func (r *Reflector) IsFunc() bool {
 	return r.Type().Kind() == reflect.Func
 }
 
-func (r *reflector) IsArray() bool {
+func (r *Reflector) IsArray() bool {
 	return r.Type().Kind() == reflect.Array
 }
 
-func (r *reflector) IsBool() bool {
+func (r *Reflector) IsBool() bool {
 	return r.Type().Kind() == reflect.Bool
 }
 
-func (r *reflector) IsNumeric() bool {
+func (r *Reflector) IsNumeric() bool {
 	return IsNumericKind(r.Type().Kind())
 }
 
-func (r *reflector) IsIterable() bool {
+func (r *Reflector) IsIterable() bool {
 	switch r.Kind() {
 	case reflect.Array, reflect.Chan, reflect.Map, reflect.Slice, reflect.String:
 		return true
@@ -322,18 +169,18 @@ func (r *reflector) IsIterable() bool {
 	return false
 }
 
-func (r *reflector) Len() int {
+func (r *Reflector) Len() int {
 	if r.IsIterable() {
 		return r.value.Len()
 	}
 	return 0
 }
 
-func (r *reflector) IsValid() bool {
+func (r *Reflector) IsValid() bool {
 	return r.value.IsValid()
 }
 
-func (r *reflector) IsNil() bool {
+func (r *Reflector) IsNil() bool {
 	if !r.IsValid() {
 		return true
 	}
@@ -346,7 +193,7 @@ func (r *reflector) IsNil() bool {
 	return false
 }
 
-func (r *reflector) IsZero() bool {
+func (r *Reflector) IsZero() bool {
 	if r.IsNil() {
 		return true
 	}
@@ -359,7 +206,7 @@ func (r *reflector) IsZero() bool {
 	return r.Interface() == reflect.Zero(r.Type()).Interface()
 }
 
-func (r *reflector) DeepIsZero() bool {
+func (r *Reflector) DeepIsZero() bool {
 	if r.IsZero() {
 		return true
 	}
@@ -369,7 +216,7 @@ func (r *reflector) DeepIsZero() bool {
 	return false
 }
 
-func (r *reflector) IsEmpty() bool {
+func (r *Reflector) IsEmpty() bool {
 	if r.IsZero() {
 		return true
 	}
@@ -382,9 +229,9 @@ func (r *reflector) IsEmpty() bool {
 	return false
 }
 
-func (r *reflector) Equals(value interface{}) bool {
+func (r *Reflector) Equals(value interface{}) bool {
 	// De-reference Reflectors or reflect.Value.
-	if r, ok := value.(Reflector); ok {
+	if r, ok := value.(*Reflector); ok {
 		value = r.Interface()
 	} else if v, ok := value.(reflect.Value); ok {
 		value = v.Interface()
@@ -392,11 +239,11 @@ func (r *reflector) Equals(value interface{}) bool {
 	return reflect.DeepEqual(r.Interface(), value)
 }
 
-func (r *reflector) Slice() (SliceReflector, error) {
+func (r *Reflector) Slice() (*SliceReflector, error) {
 	return newSliceReflector(r)
 }
 
-func (r *reflector) MustSlice() SliceReflector {
+func (r *Reflector) MustSlice() *SliceReflector {
 	s, err := r.Slice()
 	if err != nil {
 		panic(err)
@@ -404,11 +251,11 @@ func (r *reflector) MustSlice() SliceReflector {
 	return s
 }
 
-func (r *reflector) Struct() (StructReflector, error) {
+func (r *Reflector) Struct() (*StructReflector, error) {
 	return newStructReflector(r)
 }
 
-func (r *reflector) MustStruct() StructReflector {
+func (r *Reflector) MustStruct() *StructReflector {
 	s, err := r.Struct()
 	if err != nil {
 		panic(err)
@@ -416,7 +263,7 @@ func (r *reflector) MustStruct() StructReflector {
 	return s
 }
 
-func (r *reflector) NewSlice() SliceReflector {
+func (r *Reflector) NewSlice() *SliceReflector {
 	// Build new array.
 	// See http://stackoverflow.com/questions/25384640/why-golang-reflect-makeslice-returns-un-addressable-value
 	// Create a slice to begin with
@@ -435,7 +282,7 @@ func (r *reflector) NewSlice() SliceReflector {
 	return sliceReflector
 }
 
-func (r *reflector) ConvertTo(targetVal interface{}) (interface{}, error) {
+func (r *Reflector) ConvertTo(targetVal interface{}) (interface{}, error) {
 	// Check for empty value, to prevent a panic when user
 	// passes in nil for example.
 	if !reflect.ValueOf(targetVal).IsValid() {
@@ -444,7 +291,7 @@ func (r *reflector) ConvertTo(targetVal interface{}) (interface{}, error) {
 	return r.ConvertToType(reflect.TypeOf(targetVal))
 }
 
-func (r *reflector) saveConvertToType(typ reflect.Type) interface{} {
+func (r *Reflector) saveConvertToType(typ reflect.Type) interface{} {
 	defer func() {
 		recover()
 	}()
@@ -452,7 +299,7 @@ func (r *reflector) saveConvertToType(typ reflect.Type) interface{} {
 	return r.value.Convert(typ).Interface()
 }
 
-func (r *reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
+func (r *Reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 	kind := typ.Kind()
 
 	valKind := r.Type().Kind()
@@ -548,7 +395,7 @@ func (r *reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 	return converted, nil
 }
 
-func (r *reflector) Set(value Reflector, convert ...bool) error {
+func (r *Reflector) Set(value *Reflector, convert ...bool) error {
 	if value == nil {
 		return errors.New(ERR_INVALID_VALUE)
 	} else if !value.IsValid() {
@@ -573,7 +420,7 @@ func (r *reflector) Set(value Reflector, convert ...bool) error {
 	return nil
 }
 
-func (r *reflector) SetValue(rawValue interface{}, convert ...bool) error {
+func (r *Reflector) SetValue(rawValue interface{}, convert ...bool) error {
 	val := Reflect(rawValue)
 	if val == nil {
 		return errors.New(ERR_INVALID_VALUE)
@@ -628,7 +475,7 @@ func compareFloat64Values(condition string, a, b float64) (bool, error) {
 	panic("Unknown operator: " + condition)
 }
 
-func (r *reflector) CompareTo(value interface{}, operator string) (bool, error) {
+func (r *Reflector) CompareTo(value interface{}, operator string) (bool, error) {
 	// Check operator.
 	switch operator {
 	case "=", "!=", "like", "<", "<=", ">", ">=":
@@ -638,7 +485,7 @@ func (r *reflector) CompareTo(value interface{}, operator string) (bool, error) 
 		return false, errors.New(ERR_UNKNOWN_OPERATOR)
 	}
 
-	a := interface{}(r).(Reflector)
+	a := r
 	aVal := r.Interface()
 	if a.DeepIsZero() {
 		aVal = float64(0)
@@ -652,8 +499,8 @@ func (r *reflector) CompareTo(value interface{}, operator string) (bool, error) 
 	kindA := typA.Kind()
 
 	bVal := value
-	var b Reflector
-	if r, ok := value.(Reflector); ok {
+	var b *Reflector
+	if r, ok := value.(*Reflector); ok {
 		// Value is a reflector, so use it.
 		b = r
 		bVal = b.Interface()
@@ -686,6 +533,20 @@ func (r *reflector) CompareTo(value interface{}, operator string) (bool, error) 
 		t := bVal.(time.Time)
 		bVal = float64(t.UnixNano())
 		b = Reflect(bVal)
+		typB = b.Type()
+		kindB = typB.Kind()
+	}
+
+	// Convert time.Duration to float64.
+	if d, ok := aVal.(time.Duration); ok {
+		aVal = float64(d)
+		a = Reflect(aVal)
+		typA = a.Type()
+		kindA = typA.Kind()
+	}
+	if d, ok := bVal.(time.Duration); ok {
+		bVal = float64(d)
+		b = Reflect(aVal)
 		typB = b.Type()
 		kindB = typB.Kind()
 	}
