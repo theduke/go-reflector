@@ -53,7 +53,18 @@ func (r *StructReflector) Interface() interface{} {
 }
 
 func (r *StructReflector) Value() *Reflector {
-	return r.structItem
+	return r.item
+}
+
+func (r *StructReflector) Addr() *Reflector {
+	if r.item.IsPtr() {
+		return r.item
+	}
+	return r.structItem.Addr()
+}
+
+func (r *StructReflector) AddrInterface() interface{} {
+	return r.Addr().Interface()
 }
 
 func (r *StructReflector) Type() reflect.Type {
@@ -65,7 +76,12 @@ func (r *StructReflector) Name() string {
 }
 
 func (r *StructReflector) FullName() string {
-	return r.Type().PkgPath() + "." + r.Name()
+	name := r.Name()
+	pkg := r.Type().PkgPath()
+	if pkg != "" {
+		name = pkg + "." + name
+	}
+	return name
 }
 
 func (r *StructReflector) FieldInfo() map[string]*reflect.StructField {
@@ -129,7 +145,7 @@ func (r *StructReflector) FieldValue(fieldName string) (interface{}, error) {
 		return nil, errors.New(ERR_UNKNOWN_FIELD)
 	}
 
-	field := r.item.Value().FieldByName(fieldName)
+	field := r.structItem.Value().FieldByName(fieldName)
 	if !field.IsValid() {
 		return nil, errors.New(ERR_INVALID_FIELD)
 	}

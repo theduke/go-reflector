@@ -60,9 +60,13 @@ func Reflect(value interface{}) *Reflector {
 		val = reflect.ValueOf(value)
 	}
 
-	return &Reflector{
+	r := &Reflector{
 		value: val,
 	}
+	if r.IsInterface() {
+		r = r.Elem()
+	}
+	return r
 }
 
 type Reflector struct {
@@ -283,6 +287,10 @@ func (r *Reflector) NewSlice() *SliceReflector {
 }
 
 func (r *Reflector) ConvertTo(targetVal interface{}) (interface{}, error) {
+	if typ, ok := targetVal.(reflect.Type); ok {
+		return r.ConvertToType(typ)
+	}
+
 	// Check for empty value, to prevent a panic when user
 	// passes in nil for example.
 	if !reflect.ValueOf(targetVal).IsValid() {
@@ -307,6 +315,19 @@ func (r *Reflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 	if typ == r.Type() {
 		// Same type, nothing to convert.
 		return r.Interface(), nil
+	}
+
+	// If value and target are slices, but of differing type, try to convert.
+	if r.IsSlice() && typ.Kind() == reflect.Slice {
+		sliceR, err := r.Slice()
+		if err != nil {
+			return nil, err
+		}
+		newSlice, err := sliceR.ConvertToType(typ.Elem())
+		if err != nil {
+			return nil, err
+		}
+		return newSlice, nil
 	}
 
 	isPointer := kind == reflect.Ptr
@@ -422,7 +443,7 @@ func (r *Reflector) Set(value *Reflector, convert ...bool) error {
 
 func (r *Reflector) SetValue(rawValue interface{}, convert ...bool) error {
 	val := Reflect(rawValue)
-	if val == nil {
+	if !val.IsValid() {
 		return errors.New(ERR_INVALID_VALUE)
 	}
 

@@ -172,6 +172,16 @@ func (s *SliceReflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 	}
 
 	for _, item := range s.Items() {
+		// De-reference interfaces.
+		if item.IsInterface() {
+			item = item.Elem()
+		}
+
+		// If target is no pointer, dereference pointers.
+		if item.IsPtr() && typ.Kind() != reflect.Ptr {
+			item = item.Elem()
+		}
+
 		if item.Type() != typ {
 			if !item.Type().ConvertibleTo(typ) {
 				return nil, errors.New(ERR_TYPE_MISMATCH)

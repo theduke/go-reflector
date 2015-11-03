@@ -34,8 +34,6 @@ go get github.com/theduke/go-reflector
 ```go
 import "github.com/theduke/go-reflector"
 
-reflector.Reflect(nil) // => nil!
-
 r := reflector.Reflect(0)
 r.IsNumeric() // => true
 r.IsNil() // => false
