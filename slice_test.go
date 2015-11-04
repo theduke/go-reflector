@@ -105,10 +105,162 @@ var _ = Describe("Slice", func() {
 	It("Should filter slice with .FilterBy()", func() {
 		s := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 		r := R(s).MustSlice()
-		newSlice := r.FilterBy(func(item *Reflector) bool {
-			return item.Interface().(int)%2 == 0
-		}).Interface().([]int)
 
-		Expect(newSlice).To(Equal([]int{0, 2, 4, 6, 8, 10}))
+		filterFunc := func(item *Reflector) (bool, error) {
+			return item.Interface().(int)%2 == 0, nil
+		}
+
+		newSlice, err := r.FilterBy(filterFunc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(newSlice.Interface().([]int)).To(Equal([]int{0, 2, 4, 6, 8, 10}))
+	})
+
+	It("Should sort slice with .SortBy()", func() {
+		s := []int{3, 10, 8, 2, 5, 7, 1, 4, 0, 9, 6}
+		r := R(s).MustSlice()
+
+		sorter := func(a, b *Reflector) (bool, error) {
+			return a.Interface().(int) < b.Interface().(int), nil
+		}
+
+		Expect(r.SortBy(sorter)).ToNot(HaveOccurred())
+		Expect(s).To(Equal([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
+	})
+
+	It("Should sort by field with .SortByFieldFunc() with maps", func() {
+		items := []map[string]interface{}{
+			map[string]interface{}{"int": 10},
+			map[string]interface{}{"int": 2},
+			map[string]interface{}{"int": 6},
+			map[string]interface{}{"int": 8},
+			map[string]interface{}{"int": 0},
+			map[string]interface{}{"int": 4},
+		}
+
+		sortedItems := []map[string]interface{}{
+			map[string]interface{}{"int": 0},
+			map[string]interface{}{"int": 2},
+			map[string]interface{}{"int": 4},
+			map[string]interface{}{"int": 6},
+			map[string]interface{}{"int": 8},
+			map[string]interface{}{"int": 10},
+		}
+
+		r := R(items).MustSlice()
+
+		sorter := func(a, b *Reflector) (bool, error) {
+			return a.Interface().(int) < b.Interface().(int), nil
+		}
+
+		Expect(r.SortByFieldFunc("int", sorter)).ToNot(HaveOccurred())
+		Expect(items).To(Equal(sortedItems))
+	})
+
+	It("Should sort by field with .SortByFieldFunc() with structs", func() {
+		type S struct{ Int int }
+		items := []S{
+			S{10},
+			S{2},
+			S{6},
+			S{8},
+			S{0},
+			S{4},
+		}
+		sortedItems := []S{
+			S{0},
+			S{2},
+			S{4},
+			S{6},
+			S{8},
+			S{10},
+		}
+
+		r := R(items).MustSlice()
+
+		sorter := func(a, b *Reflector) (bool, error) {
+			return a.Interface().(int) < b.Interface().(int), nil
+		}
+
+		Expect(r.SortByFieldFunc("Int", sorter)).ToNot(HaveOccurred())
+		Expect(items).To(Equal(sortedItems))
+	})
+
+	It("Should sort by field with .SortByFieldFunc() with struct pointers", func() {
+		type S struct{ Int int }
+		items := []*S{
+			&S{10},
+			&S{2},
+			&S{6},
+			&S{8},
+			&S{0},
+			&S{4},
+		}
+		sortedItems := []*S{
+			&S{0},
+			&S{2},
+			&S{4},
+			&S{6},
+			&S{8},
+			&S{10},
+		}
+
+		r := R(items).MustSlice()
+
+		sorter := func(a, b *Reflector) (bool, error) {
+			return a.Interface().(int) < b.Interface().(int), nil
+		}
+
+		Expect(r.SortByFieldFunc("Int", sorter)).ToNot(HaveOccurred())
+		Expect(items).To(BeEquivalentTo(sortedItems))
+	})
+
+	It("Should sort by field with .SortByField()", func() {
+		type S struct{ Int int }
+		items := []*S{
+			&S{10},
+			&S{2},
+			&S{6},
+			&S{8},
+			&S{0},
+			&S{4},
+		}
+		sortedItems := []*S{
+			&S{0},
+			&S{2},
+			&S{4},
+			&S{6},
+			&S{8},
+			&S{10},
+		}
+
+		r := R(items).MustSlice()
+
+		Expect(r.SortByField("Int", true)).ToNot(HaveOccurred())
+		Expect(items).To(BeEquivalentTo(sortedItems))
+	})
+
+	It("Should sort by field with .SortByField() descending", func() {
+		type S struct{ Int int }
+		items := []*S{
+			&S{10},
+			&S{2},
+			&S{6},
+			&S{8},
+			&S{0},
+			&S{4},
+		}
+		sortedItems := []*S{
+			&S{10},
+			&S{8},
+			&S{6},
+			&S{4},
+			&S{2},
+			&S{0},
+		}
+
+		r := R(items).MustSlice()
+
+		Expect(r.SortByField("Int", false)).ToNot(HaveOccurred())
+		Expect(items).To(BeEquivalentTo(sortedItems))
 	})
 })

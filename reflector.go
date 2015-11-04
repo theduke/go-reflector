@@ -553,7 +553,7 @@ func (r *Reflector) CompareTo(value interface{}, operator string) (bool, error) 
 
 	a := r
 	aVal := r.Interface()
-	if a.DeepIsZero() {
+	if !a.IsValid() || a.DeepIsZero() {
 		aVal = float64(0)
 		a = Reflect(aVal)
 	}
@@ -573,7 +573,7 @@ func (r *Reflector) CompareTo(value interface{}, operator string) (bool, error) 
 	} else {
 		b = Reflect(value)
 	}
-	if b == nil || b.DeepIsZero() {
+	if !b.IsValid() || b.DeepIsZero() {
 		bVal = float64(0)
 		b = Reflect(bVal)
 		aVal, bVal = bVal, aVal

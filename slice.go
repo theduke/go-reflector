@@ -3,6 +3,7 @@ package reflector
 import (
 	"errors"
 	"reflect"
+	"sort"
 )
 
 type SliceReflector struct {
@@ -73,6 +74,10 @@ func (s *SliceReflector) Cap() int {
 	return s.sliceValue.Value().Cap()
 }
 
+func (s *SliceReflector) New() *SliceReflector {
+	return New(s.Type()).NewSlice()
+}
+
 func (s *SliceReflector) Index(i int) *Reflector {
 	if i > s.Len()-1 {
 		return nil
@@ -118,13 +123,13 @@ func (s *SliceReflector) Swap(index1, index2 int) error {
 }
 
 func (s *SliceReflector) Items() []*Reflector {
-	sl := make([]*Reflector, 0)
+	sl := make([]*Reflector, s.Len(), s.Len())
 	for i := 0; i < s.Len(); i++ {
 		item := s.Index(i)
 		if item.IsInterface() && !item.IsNil() {
 			item = item.Elem()
 		}
-		sl = append(sl, item)
+		sl[i] = item
 	}
 	return sl
 }
@@ -199,18 +204,146 @@ func (s *SliceReflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 
 // FilterBy filters the slice with a function that is called for each slice item, and must return true or false.
 // Returns a new slice that only contains the filtered items.
-func (s *SliceReflector) FilterBy(filterFunc func(sliceItem *Reflector) (include bool)) *SliceReflector {
+func (s *SliceReflector) FilterBy(filterFunc func(sliceItem *Reflector) (include bool, err error)) (*SliceReflector, error) {
 	if s.Len() < 1 {
-		return s
+		return s, nil
 	}
 
 	newSlice := s.Index(0).NewSlice()
 
 	for _, item := range s.Items() {
-		if filterFunc(item) {
+		if include, err := filterFunc(item); err != nil {
+			return nil, err
+		} else if include {
 			newSlice.Append(item)
 		}
 	}
 
-	return newSlice
+	return newSlice, nil
+}
+
+func (s *SliceReflector) SortBy(sorterFunc func(a, b *Reflector) (bool, error)) error {
+	if s.Len() < 1 {
+		return nil
+	}
+
+	sorter := sliceSorter{
+		slice:    s,
+		items:    s.Items(),
+		sortFunc: sorterFunc,
+	}
+
+	sort.Sort(sorter)
+	if sorter.err != nil {
+		return sorter.err
+	}
+
+	return nil
+}
+
+func (s *SliceReflector) SortByFieldFunc(fieldName string, sorterFunc func(a, b *Reflector) (bool, error)) error {
+	if s.Len() < 1 {
+		return nil
+	}
+
+	firstItem := s.Index(0)
+
+	if !(firstItem.IsStructPtr() || firstItem.IsStruct() || firstItem.IsMap()) {
+		return errors.New("Can't sort by field when slice items are neither pointers to structs, structs or maps")
+	}
+
+	if firstItem.IsStructPtr() || firstItem.IsStruct() {
+		// Check that struct field exists.
+		if !firstItem.MustStruct().HasField(fieldName) {
+			return errors.New(ERR_UNKNOWN_FIELD)
+		}
+	}
+
+	items := make([]*Reflector, s.Len(), s.Len())
+	for i, item := range s.Items() {
+		if item.IsStructPtr() {
+			item = item.Elem()
+		}
+		items[i] = item
+	}
+
+	fieldNameVal := reflect.ValueOf(fieldName)
+
+	sorter := sliceSorter{
+		slice: s,
+		items: s.Items(),
+		sortFunc: func(a, b *Reflector) (bool, error) {
+			var aVal, bVal *Reflector
+
+			if a.IsStructPtr() {
+				a = a.Elem()
+			}
+			if b.IsStructPtr() {
+				b = b.Elem()
+			}
+
+			if a.IsStruct() {
+				aVal = a.MustStruct().Field(fieldName)
+				bVal = b.MustStruct().Field(fieldName)
+			} else {
+				aVal = R(a.Value().MapIndex(fieldNameVal))
+				bVal = R(b.Value().MapIndex(fieldNameVal))
+			}
+
+			// De-reference interfaces.
+			if aVal.IsInterface() && aVal.IsValid() {
+				aVal = aVal.Elem()
+			}
+			if bVal.IsInterface() && bVal.IsValid() {
+				bVal = bVal.Elem()
+			}
+
+			return sorterFunc(aVal, bVal)
+		},
+	}
+
+	sort.Sort(sorter)
+	if sorter.err != nil {
+		return sorter.err
+	}
+
+	return nil
+}
+
+func (s *SliceReflector) SortByField(fieldName string, ascending bool) error {
+	operator := "<"
+	if !ascending {
+		operator = ">"
+	}
+
+	sorter := func(a, b *Reflector) (bool, error) {
+		return a.CompareTo(b, operator)
+	}
+
+	return s.SortByFieldFunc(fieldName, sorter)
+}
+
+type sliceSorter struct {
+	slice    *SliceReflector
+	items    []*Reflector
+	sortFunc func(a, b *Reflector) (bool, error)
+	err      error
+}
+
+func (s sliceSorter) Len() int {
+	return s.slice.Len()
+}
+
+func (s sliceSorter) Swap(i, j int) {
+	s.slice.Swap(i, j)
+}
+
+func (s sliceSorter) Less(i, j int) bool {
+	flag, err := s.sortFunc(s.items[i], s.items[j])
+	if err != nil {
+		s.err = err
+		return true
+	}
+
+	return flag
 }
