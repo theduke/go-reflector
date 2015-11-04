@@ -375,6 +375,51 @@ var _ = Describe("Reflector", func() {
 			})
 		})
 
+		Describe("Maps", func() {
+			It("Should set map key", func() {
+				m := map[string]int{"x": 22}
+
+				r := R(m)
+				Expect(r.SetMapKey(R("y"), R(33))).ToNot(HaveOccurred())
+				Expect(m["y"]).To(Equal(33))
+			})
+
+			It("Should set map key by converting", func() {
+				m := map[string]int{"x": 22}
+				r := R(m)
+				Expect(r.SetMapKey(R("y"), R(float64(55)), true)).ToNot(HaveOccurred())
+				Expect(m["y"]).To(Equal(55))
+			})
+
+			It("Should set map string key by value", func() {
+				m := map[string]int{"x": 22}
+				r := R(m)
+				Expect(r.SetStrMapKeyValue("z", 11)).ToNot(HaveOccurred())
+				Expect(m["z"]).To(Equal(11))
+			})
+
+			It("Should set map string key by value and convert", func() {
+				m := map[string]int{"x": 22}
+				r := R(m)
+				Expect(r.SetStrMapKeyValue("z", float64(11), true)).ToNot(HaveOccurred())
+				Expect(m["z"]).To(Equal(11))
+			})
+
+			It("Should set map string key by value with interface map", func() {
+				m := map[string]interface{}{"x": 22}
+				r := R(m)
+				Expect(r.SetStrMapKeyValue("z", float64(11), true)).ToNot(HaveOccurred())
+				Expect(m["z"]).To(Equal(float64(11)))
+			})
+
+			It("Should produce error when setting wrong key type and wrong value", func() {
+				m := map[int]string{}
+				r := R(m)
+				err := r.SetStrMapKeyValue("z", float64(11), true)
+				Expect(err).To(HaveOccurred())
+			})
+		})
+
 	})
 
 	Describe("Type comparisons", func() {

@@ -495,6 +495,48 @@ func (r *Reflector) SetValue(rawValue interface{}, convert ...bool) error {
 	return r.Set(val, convert...)
 }
 
+func saveExecute(f func()) bool {
+	defer func() {
+		recover()
+	}()
+
+	f()
+	return true
+}
+
+func (r *Reflector) SetMapKey(key *Reflector, value *Reflector, convert ...bool) error {
+	if !r.IsMap() {
+		return errors.New("not_a_map")
+	}
+
+	valueType := r.Type().Elem()
+	if value.Type() != valueType {
+		if len(convert) > 0 && convert[0] {
+			v, err := value.ConvertToType(valueType)
+			if err != nil {
+				return err
+			}
+			value = R(v)
+		} else {
+			return errors.New(ERR_TYPE_MISMATCH)
+		}
+	}
+
+	success := saveExecute(func() {
+		r.Value().SetMapIndex(key.Value(), value.Value())
+	})
+
+	if !success {
+		return errors.New("invalid_types_or_nil_map")
+	}
+
+	return nil
+}
+
+func (r *Reflector) SetStrMapKeyValue(key string, value interface{}, convert ...bool) error {
+	return r.SetMapKey(R(key), R(value), convert...)
+}
+
 func compareStringValues(condition, a, b string) (bool, error) {
 	// Check different possible filters.
 	switch condition {
