@@ -50,8 +50,7 @@ func New(typ reflect.Type) *Reflector {
 	return Reflect(reflect.New(typ))
 }
 
-// Reflect returns a new Reflector for the given value, or nil if the value
-// is invalid.
+// Reflect returns a new Reflector for the given value, or nil if the value is invalid.
 func Reflect(value interface{}) *Reflector {
 	var val reflect.Value
 	if v, ok := value.(reflect.Value); ok {
@@ -69,6 +68,11 @@ func Reflect(value interface{}) *Reflector {
 	return r
 }
 
+// R is a convenient alias for Reflect().
+func R(value interface{}) *Reflector {
+	return Reflect(value)
+}
+
 type Reflector struct {
 	value reflect.Value
 }
@@ -78,10 +82,15 @@ func (r *Reflector) String() string {
 }
 
 func (r *Reflector) Interface() interface{} {
-	if !r.value.CanInterface() {
+	val := r.value
+	if r.IsInterface() {
+		val = r.Elem().Value()
+	}
+
+	if !val.CanInterface() {
 		return nil
 	}
-	return r.value.Interface()
+	return val.Interface()
 }
 
 func (r *Reflector) Value() reflect.Value {

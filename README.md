@@ -34,7 +34,11 @@ go get github.com/theduke/go-reflector
 ```go
 import "github.com/theduke/go-reflector"
 
+
 r := reflector.Reflect(0)
+
+// Note: reflector.R(x) is a convenient alias for reflector.Reflect(x).
+r = reflector.R(0)
 r.IsNumeric() // => true
 r.IsNil() // => false
 r.IsZero() // => true
@@ -47,18 +51,18 @@ r.ConvertTo("") // => "0"
 val, err := r.ConvertTo(float64(0)) // => 0.0
 
 // Convert string to int.
-val, err = reflector.Reflect("22").ConvertTo(0) // => 22
+val, err = reflector.R("22").ConvertTo(0) // => 22
 
 // Convert float64 to int.
-val, err = reflector.Reflect(float64(10.0)).ConvertTo(0) // => 10
+val, err = reflector.R(float64(10.0)).ConvertTo(0) // => 10
 
 // Convert string to time.Time!
-val, err := reflector.Reflect("2012-05-23T18:30:00.000-05:00").ConvertTo(time.Time{}) // => time.Time{}
+val, err := reflector.R("2012-05-23T18:30:00.000-05:00").ConvertTo(time.Time{}) // => time.Time{}
 
 
 // Iterables.
 
-r := reflector.Reflect([]int{1,2,3})
+r := reflector.R([]int{1,2,3})
 r.IsEmpty() // => false
 r.IsMap() // => false
 r.IsSlice() // => true
@@ -72,7 +76,7 @@ r.Equals([]int{1,2,3}) // => true
 ```go
 import "github.com/theduke/go-reflector"
 
-s := reflector.Reflect([]int{1,2,3}).MustSlice()
+s := reflector.R([]int{1,2,3}).MustSlice()
 s.Type() // => reflect.Type <int>
 s.Len() // => 3
 // Get a Reflector for an item in the slice.
@@ -94,7 +98,7 @@ rr, err := s.ConvertTo(float64(0))
 floatSlice := rr.Interface() // []float64{1.0, 2.0, 3.0}
 
 // Creating new uint slice.
-n := reflector.Reflect(uint(0)).NewSlice()
+n := reflector.R(uint(0)).NewSlice()
 err := n.AppendValue(uint(4), uint(5), uint(6))
 n.Len() // => 3
 n.Interface() // => []uint{4, 5, 6}
@@ -105,7 +109,7 @@ err := n.AppendValue("2") // => err: type_mismatch
 // Updating existing slices.
 var intSlice []int
 // Note: must pass pointer to slice!
-r := reflector.Reflect(&intSlice).MustSlice()
+r := reflector.R(&intSlice).MustSlice()
 err := r.AppendValue(1, 2)
 len(intSlice) // => 2
 ```
@@ -123,7 +127,7 @@ t := TestStruct{
 	Field2: "x"
 }
 
-r := reflector.Reflect(t).MustStruct()
+r := reflector.R(t).MustStruct()
 
 // Check field presence.
 r.HasField("Field1") // => true
@@ -160,7 +164,7 @@ t := TestStruct{
 }
 
 // Notice that you must pass a pointer!
-r := reflector.Reflect(&t).MustStruct()
+r := reflector.R(&t).MustStruct()
 
 err := r.SetFieldValue("Field1", 44) // => nil
 err := r.SetFieldValue("Field2", 44) // => err_type_mismatch
@@ -190,7 +194,7 @@ err := r.FromMap(data, true) // => nil
 
 ```go
 
-r := reflector.Reflect(20)
+r := reflector.R(20)
 
 flag, err := r.CompareTo(float64(20), "=") // => true, nil
 flag, err := r.CompareTo(uint(30), "<") // => true, nil
