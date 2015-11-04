@@ -196,3 +196,21 @@ func (s *SliceReflector) ConvertToType(typ reflect.Type) (interface{}, error) {
 
 	return newSlice.Interface(), nil
 }
+
+// FilterBy filters the slice with a function that is called for each slice item, and must return true or false.
+// Returns a new slice that only contains the filtered items.
+func (s *SliceReflector) FilterBy(filterFunc func(sliceItem *Reflector) (include bool)) *SliceReflector {
+	if s.Len() < 1 {
+		return s
+	}
+
+	newSlice := s.Index(0).NewSlice()
+
+	for _, item := range s.Items() {
+		if filterFunc(item) {
+			newSlice.Append(item)
+		}
+	}
+
+	return newSlice
+}

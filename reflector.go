@@ -127,50 +127,86 @@ func (r *Reflector) New() *Reflector {
 }
 
 func (r *Reflector) IsPtr() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return r.Type().Kind() == reflect.Ptr
 }
 
 func (r *Reflector) IsString() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return r.Type().Kind() == reflect.String
 }
 
 func (r *Reflector) IsSlice() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return r.Type().Kind() == reflect.Slice
 }
 
 func (r *Reflector) IsMap() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return r.Type().Kind() == reflect.Map
 }
 
 func (r *Reflector) IsStruct() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return r.Type().Kind() == reflect.Struct
 }
 
 func (r *Reflector) IsStructPtr() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return r.Type().Kind() == reflect.Ptr && r.Type().Elem().Kind() == reflect.Struct
 }
 
 func (r *Reflector) IsInterface() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return r.Type().Kind() == reflect.Interface
 }
 
 func (r *Reflector) IsChan() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return r.Type().Kind() == reflect.Chan
 }
 
 func (r *Reflector) IsFunc() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return r.Type().Kind() == reflect.Func
 }
 
 func (r *Reflector) IsArray() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return r.Type().Kind() == reflect.Array
 }
 
 func (r *Reflector) IsBool() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return r.Type().Kind() == reflect.Bool
 }
 
 func (r *Reflector) IsNumeric() bool {
+	if !r.IsValid() {
+		return false
+	}
 	return IsNumericKind(r.Type().Kind())
 }
 

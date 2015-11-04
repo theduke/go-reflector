@@ -62,7 +62,7 @@ var _ = Describe("Struct", func() {
 	It("Should create new struct with .New()", func() {
 		r, _ := Reflect(testStruct{}).Struct()
 		s := r.New()
-		Expect(s.Value().Interface()).To(Equal(testStruct{}))
+		Expect(s.Interface()).To(Equal(testStruct{}))
 	})
 
 	It("Should return nil on .Field() with inexistant field", func() {

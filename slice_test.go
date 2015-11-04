@@ -101,4 +101,14 @@ var _ = Describe("Slice", func() {
 		s := []interface{}{0, 1, 2, 3}
 		Expect(Reflect(s).MustSlice().ConvertTo(float64(0))).To(Equal([]float64{float64(0), float64(1), float64(2), float64(3)}))
 	})
+
+	It("Should filter slice with .FilterBy()", func() {
+		s := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+		r := R(s).MustSlice()
+		newSlice := r.FilterBy(func(item *Reflector) bool {
+			return item.Interface().(int)%2 == 0
+		}).Interface().([]int)
+
+		Expect(newSlice).To(Equal([]int{0, 2, 4, 6, 8, 10}))
+	})
 })
